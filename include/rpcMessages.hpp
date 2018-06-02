@@ -1,3 +1,6 @@
+#ifndef __RPC_MESSAGES__
+#define __RPC_MESSAGES__
+
 #include <vector>
 #include <cstdint>
 
@@ -7,6 +10,9 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/ext.hpp>
 
+#define LEFT_HAND  0
+#define RIGHT_HAND 1
+
 /**
  * Custom RPC messages specificially made for the tower defender game. This includes
  * the user's Oculus poses and the current state of the game.
@@ -14,14 +20,14 @@
 namespace rpcmsg {
 
 	// Remote procedure function call name
-	static const std::string UPDATE_PLAYER_DATA = "UPDATE_PLAYER_DATA";
-	static const std::string GET_GAME_DATA = "GET_GAME_DATA";
-	static const std::string REQUEST_SERVER_SESSION = "REQUEST_SERVER_SESSION";
-	static const std::string CLOSE_SERVER_SESSION = "CLOSE_SERVER_SESSION";
+	const std::string UPDATE_PLAYER_DATA = "UPDATE_PLAYER_DATA";
+	const std::string GET_GAME_DATA = "GET_GAME_DATA";
+	const std::string REQUEST_SERVER_SESSION = "REQUEST_SERVER_SESSION";
+	const std::string CLOSE_SERVER_SESSION = "CLOSE_SERVER_SESSION";
 
 	// ERROR messages
-	static const std::string INVALID_USER = "INVALID_USER_SPECIFIED";
-	static const std::string MAX_USER_EXCEEDED = "MAX_USER_EXCEEDED";
+	const std::string INVALID_USER = "INVALID_USER_SPECIFIED";
+	const std::string MAX_USER_EXCEEDED = "MAX_USER_EXCEEDED";
 
 	// RPC message for vec2
 	struct vec2 {
@@ -60,11 +66,26 @@ namespace rpcmsg {
 		MSGPACK_DEFINE_ARRAY(headPose);
 	};
 
+	// RPC message that holds data for user's arrow
+	struct ArrowData {
+		rpcmsg::mat4 arrowPose;
+		uint32_t     arrowType;
+		uint64_t     launchTimeMilliseconds;
+		rpcmsg::vec3 initVelocity;
+		rpcmsg::vec3 initPosition;
+		rpcmsg::vec3 position;
+		MSGPACK_DEFINE_ARRAY(arrowPose, arrowType, launchTimeMilliseconds, initVelocity, initPosition, position);
+	};
+
 	// RPC message that holds all the data relating to the user
 	struct PlayerData {
 		rpcmsg::HeadData                headData;
 		std::array<rpcmsg::HandData, 2> handData;
-		MSGPACK_DEFINE_ARRAY(headData, handData);
+		rpcmsg::ArrowData               arrowData;
+		uint32_t                        dominantHand;
+		bool                            arrowReleased;
+		bool                            arrowReadying;
+		MSGPACK_DEFINE_ARRAY(headData, handData, arrowData, dominantHand, arrowReleased);
 	};
 
 	// RPC message that holds all data relating to a single castle crasher
@@ -80,8 +101,8 @@ namespace rpcmsg {
 		bool     gameStarted;
 		uint32_t gameScore;
 		uint32_t castleHealth;
-		std::vector<rpcmsg::CastleCrasherData> castleCrashers;
-		MSGPACK_DEFINE_ARRAY(gameStarted, gameScore, castleHealth, castleCrashers);
+		std::vector<rpcmsg::CastleCrasherData> castleCrasherData;
+		MSGPACK_DEFINE_ARRAY(gameStarted, gameScore, castleHealth, castleCrasherData);
 	};
 
 	// RPC message that holds a copy of the entire game state
@@ -92,51 +113,28 @@ namespace rpcmsg {
 	};
 
 	// Convert glm::vec2 over to an RPC message
-	static rpcmsg::vec2 glmToRPC(const glm::vec2 & data) {
-		return rpcmsg::vec2{ data.x, data.y };
-	}
+	rpcmsg::vec2 glmToRPC(const glm::vec2 & data);
 
 	// Convert glm::vec3 over to an RPC message
-	static rpcmsg::vec3 glmToRPC(const glm::vec3 & data) {
-		return rpcmsg::vec3{ data.x, data.y, data.z };
-	}
+	rpcmsg::vec3 glmToRPC(const glm::vec3 & data);
 
 	// Convert glm::vec4 over to an RPC message
-	static rpcmsg::vec4 glmToRPC(const glm::vec4 & data) {
-		return rpcmsg::vec4{ data.x, data.y, data.z, data.w };
-	}
+	rpcmsg::vec4 glmToRPC(const glm::vec4 & data);
 
 	// Convert glm::mat4 over to an RPC message
-	static rpcmsg::mat4 glmToRPC(const glm::mat4 & data) {
-		rpcmsg::mat4 result;
-		for (int row = 0; row < 4; row++)
-			for (int col = 0; col < 4; col++)
-				result[row][col] = data[row][col];
-		return result;
-	}
+	rpcmsg::mat4 glmToRPC(const glm::mat4 & data);
 
 	// Convert the RPC message's version of glm::vec2 back to glm::vec2
-	static glm::vec2 rpcToGLM(const rpcmsg::vec2 & data) {
-		return glm::vec2(data.x, data.y);
-	}
+	glm::vec2 rpcToGLM(const rpcmsg::vec2 & data);
 
 	// Convert the RPC message's version of glm::vec3 back to glm::vec3
-	static glm::vec3 rpcToGLM(const rpcmsg::vec3 & data) {
-		return glm::vec3(data.x, data.y, data.z);
-	}
+	glm::vec3 rpcToGLM(const rpcmsg::vec3 & data);
 
 	// Convert the RPC message's version of glm::vec4 back to glm::vec4
-	static glm::vec4 rpcToGLM(const rpcmsg::vec4 & data) {
-		return glm::vec4(data.x, data.y, data.z, data.w);
-	}
+	glm::vec4 rpcToGLM(const rpcmsg::vec4 & data);
 
 	// Convert the RPC message's version of glm::mat4 back to glm::mat4
-	static glm::mat4 rpcToGLM(const rpcmsg::mat4 & data) {
-		glm::mat4 result;
-		for (int row = 0; row < 4; row++)
-			for (int col = 0; col < 4; col++)
-				result[row][col] = data[row][col];
-		return result;
-	}
-
+	glm::mat4 rpcToGLM(const rpcmsg::mat4 & data);
 }
+
+#endif

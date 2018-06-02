@@ -64,6 +64,9 @@ void GameServer::closeServerSession(uint32_t playerID) {
 
 GameServer::GameServer(int portNumber)
 {
+	// Start the game server update service
+	this->gameEngine = std::make_unique<GameEngine>();
+
 	// Instantiate a new server object
 	this->server = std::make_unique<rpc::server>(portNumber);
 

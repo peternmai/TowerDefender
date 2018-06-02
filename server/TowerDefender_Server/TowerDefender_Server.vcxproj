@@ -127,6 +127,8 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="..\..\src\rpcMessages.cpp" />
+    <ClCompile Include="..\src\GameEngine.cpp" />
     <ClCompile Include="..\src\GameServer.cpp" />
     <ClCompile Include="..\src\main.cpp" />
   </ItemGroup>
@@ -135,6 +137,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\include\rpcMessages.hpp" />
+    <ClInclude Include="..\src\GameEngine.hpp" />
     <ClInclude Include="..\src\GameServer.hpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

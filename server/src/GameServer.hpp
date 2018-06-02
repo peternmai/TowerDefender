@@ -6,6 +6,7 @@
 
 #include "rpc/server.h"
 #include "rpcMessages.hpp"
+#include "GameEngine.hpp"
 
 #include <glm/mat4x4.hpp>
 #include <glm/gtc/matrix_transform.hpp>
@@ -22,6 +23,7 @@ class GameServer
 {
 private:
 
+	std::unique_ptr<GameEngine> gameEngine;
 	std::unique_ptr<rpc::server> server;
 	std::mutex requestSessionLock;
 
