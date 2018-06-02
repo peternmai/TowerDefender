@@ -24,7 +24,7 @@
     <ClCompile Include="..\src\GameEngine.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\rpcMessages.cpp">
+    <ClCompile Include="..\..\shared\src\rpcMessages.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
@@ -32,13 +32,13 @@
     <None Include="packages.config" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\src\GameServer.hpp">
+    <ClInclude Include="..\include\GameEngine.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\include\rpcMessages.hpp">
+    <ClInclude Include="..\include\GameServer.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\src\GameEngine.hpp">
+    <ClInclude Include="..\..\shared\include\rpcMessages.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
