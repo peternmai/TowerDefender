@@ -47,7 +47,7 @@ private:
     // Remote Procedure Calls
     void updatePlayerData(uint32_t playerID, rpcmsg::PlayerData const & playerData);
     std::vector<char> getEntireGameData();
-    uint32_t requestServerSession();
+    uint32_t requestServerSession(const rpcmsg::PlayerData & playerData);
     void closeServerSession(uint32_t playerID);
 
     // Helper function

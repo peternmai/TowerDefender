@@ -3,19 +3,20 @@
 #include <chrono>
 #include <thread>
 
-bool GameClient::registerNewPlayerSession() {
+uint32_t GameClient::registerNewPlayerSession(const rpcmsg::PlayerData & playerData) {
     try {
-        this->playerID = this->client->call(rpcmsg::REQUEST_SERVER_SESSION).as<uint32_t>();
+        this->playerID = this->client->call(rpcmsg::REQUEST_SERVER_SESSION, playerData).as<uint32_t>();
         this->validPlayerSession = true;
     }
     catch (const std::exception&) {
         std::cerr << "Unable to register new player session" << std::endl;
+        this->playerID = 0;
     }
 
-    return this->validPlayerSession;
+    return this->playerID;
 }
 
-bool GameClient::updatePlayerData(rpcmsg::PlayerData const & playerData) {
+bool GameClient::updatePlayerData(const rpcmsg::PlayerData & playerData) {
     try {
         this->client->call(rpcmsg::UPDATE_PLAYER_DATA, this->playerID, playerData);
         return true;
@@ -32,8 +33,8 @@ rpcmsg::GameData GameClient::syncGameState() {
     
     RPCLIB_MSGPACK::object_handle oh = RPCLIB_MSGPACK::unpack(raw_data.data(), raw_data.size());
     RPCLIB_MSGPACK::object obj = oh.get();
-    std::cout << raw_data.size() << std::endl;
-    std::cout << obj << std::endl;
+    //std::cout << raw_data.size() << std::endl;
+    //std::cout << obj << std::endl;
 
     rpcmsg::GameData gameData;
     obj.convert(gameData);
@@ -59,9 +60,10 @@ GameClient::GameClient(std::string ipAddress, int portNumber)
     }
 
     std::cout << "\tSuccessfully connected to server." << std::endl;
-    this->registerNewPlayerSession();
-    this->syncGameState();
-    while(1) {}
+}
+
+rpc::client::connection_state GameClient::getConnectionState() {
+    return this->client->get_connection_state();
 }
 
 
@@ -69,8 +71,4 @@ GameClient::~GameClient()
 {
     if (this->validPlayerSession)
         this->client->call(rpcmsg::CLOSE_SERVER_SESSION, this->playerID);
-}
-
-int main() {
-    GameClient gameClient("localhost", 8080);
 }

@@ -15,6 +15,7 @@ void GameServer::updatePlayerData(uint32_t playerID, rpcmsg::PlayerData const & 
     
     // All is good, update the server's data
     this->gameEngine->handleNewUserInput(playerID, playerData);
+    this->communicationMetadata[playerID].lastCommunicated = this->getCurrentTime();
 }
 
 // Client wants to get a copy of the current state of the game.
@@ -30,7 +31,7 @@ std::vector<char> GameServer::getEntireGameData() {
 }
 
 // Client wants to join the game. Return a player ID if max user has not exceeded.
-uint32_t GameServer::requestServerSession() {
+uint32_t GameServer::requestServerSession(const rpcmsg::PlayerData & playerData) {
     if (DEBUG) std::cout << "Client requestiong game session..." << std::endl;
 
     // Check if user can join
@@ -46,10 +47,9 @@ uint32_t GameServer::requestServerSession() {
     srand((unsigned int)time(NULL));
     do {
         playerID = rand() % std::numeric_limits<uint32_t>::max();
-    } while (this->communicationMetadata.find(playerID) != this->communicationMetadata.end());
-    rpcmsg::PlayerData newPlayerData{};
+    } while ((playerID == 0) || (this->communicationMetadata.find(playerID) != this->communicationMetadata.end()));
     this->communicationMetadata[playerID] = { playerID, this->getCurrentTime() };
-    this->gameEngine->handleNewUserInput(playerID, newPlayerData);
+    this->updatePlayerData(playerID, playerData);
 
     // Return the player's ID number
     if (DEBUG) std::cout << "\tNew player ID " << playerID << " registered" << std::endl;
@@ -100,8 +100,9 @@ GameServer::GameServer(int portNumber)
     });
 
     // Bind function to allow client to join the game
-    this->server->bind(rpcmsg::REQUEST_SERVER_SESSION, [this]() {
-        return this->requestServerSession(); });
+    this->server->bind(rpcmsg::REQUEST_SERVER_SESSION,
+        [this](const rpcmsg::PlayerData & playerData) {
+        return this->requestServerSession(playerData); });
 
     // Bind function to allow client to leave game session
     this->server->bind(rpcmsg::CLOSE_SERVER_SESSION, [this](uint32_t playerID) {

@@ -114,22 +114,25 @@ void GameEngine::updatePlayerData()
         uint32_t playerID = player->first;
 
         // Update the user's dominant hand
-        if (newPlayerData[playerID].handData[LEFT_HAND].buttonState & ovrButton::ovrButton_X)
+        if (newPlayerData[playerID].handData[LEFT_HAND].buttonState & ovrButton::ovrButton_Y)
             updatedPlayerData[playerID].dominantHand = LEFT_HAND;
-        if (newPlayerData[playerID].handData[RIGHT_HAND].buttonState & ovrButton::ovrButton_A)
+        if (newPlayerData[playerID].handData[RIGHT_HAND].buttonState & ovrButton::ovrButton_B)
             updatedPlayerData[playerID].dominantHand = RIGHT_HAND;
         
         uint32_t playerDominantHand = updatedPlayerData[playerID].dominantHand;
         uint32_t playerNonDominantHand = (playerDominantHand == LEFT_HAND) ? RIGHT_HAND : LEFT_HAND;
-        glm::vec3 arrowReadyUpZone = glm::vec3(rpcmsg::rpcToGLM(newPlayerData[playerID].handData[playerNonDominantHand].handPose) * glm::vec4(0.0f, 0.0f, ARROW_READY_ZONE_Z_OFFSET, 0.0f));
-        glm::vec3 arrowReloadZone = glm::vec3(rpcmsg::rpcToGLM(newPlayerData[playerID].headData.headPose) * glm::vec4(0.0f, 0.0f, ARROW_RELOAD_ZONE_Z_OFFSET, 0.0f));
-        glm::vec3 dominantHandPosition = glm::vec3(rpcmsg::rpcToGLM(newPlayerData[playerID].handData[playerDominantHand].handPose) * glm::vec4(0.0f));
+        glm::vec3 arrowReadyUpZone = glm::vec3((rpcmsg::rpcToGLM(newPlayerData[playerID].handData[playerNonDominantHand].handPose) * glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.0f, ARROW_READY_ZONE_Z_OFFSET)))[3]);
+        glm::vec3 arrowReloadZone = glm::vec3((rpcmsg::rpcToGLM(newPlayerData[playerID].headData.headPose) * glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.0f, ARROW_RELOAD_ZONE_Z_OFFSET)))[3]);
+        glm::vec3 dominantHandPosition = glm::vec3(rpcmsg::rpcToGLM(newPlayerData[playerID].handData[playerDominantHand].handPose)[3]);
+        glm::vec3 nonDominantHandPosition = glm::vec3(rpcmsg::rpcToGLM(newPlayerData[playerID].handData[playerNonDominantHand].handPose)[3]);
+        std::cout << nonDominantHandPosition.x << " " << nonDominantHandPosition.y << " " << nonDominantHandPosition.z << " | "
+            << arrowReadyUpZone.x << " " << arrowReadyUpZone.y << " " << arrowReadyUpZone.z << " " << glm::length(arrowReadyUpZone - dominantHandPosition) << std::endl;
 
         // Player released arrow (arrowReleased == true)
-        if (newPlayerData[playerID].arrowReleased == true) {
+        if (this->gameData.playerData[playerID].arrowReleased == true) {
 
             // See if player's arrow landed and user can pick up another arrow
-            glm::vec3 arrowPosition = glm::vec3(rpcmsg::rpcToGLM(newPlayerData[playerID].arrowData.arrowPose) * glm::vec4(0.0f));
+            glm::vec3 arrowPosition = rpcmsg::rpcToGLM(this->gameData.playerData[playerID].arrowData.arrowPose)[3];
             if (arrowPosition.y < 0.0f) {
 
                 // See if user is reaching for a new arrow
@@ -141,22 +144,23 @@ void GameEngine::updatePlayerData()
         }
 
         // Player is currently holding the arrow (arrowReleased == false && holding)
-        else if (newPlayerData[playerID].handData[playerDominantHand].handTriggerValue < 0.5f) {
+        else if (newPlayerData[playerID].handData[playerDominantHand].handTriggerValue > 0.5f) {
 
             // Update the pose of the arrow
-            glm::mat4 arrowPose = glm::lookAt(dominantHandPosition, arrowReloadZone, glm::vec3(0.0f, 1.0f, 0.0f));
+            glm::mat4 arrowPose = glm::mat4(1.0f);// glm::lookAt(dominantHandPosition, nonDominantHandPosition, glm::vec3(0.0f, 1.0f, 0.0f));
+            arrowPose = glm::rotate(glm::mat4(1.0f), 45.0f, glm::normalize(nonDominantHandPosition - dominantHandPosition));
             arrowPose = glm::translate(glm::mat4(1.0f), dominantHandPosition) * arrowPose;
             updatedPlayerData[playerID].arrowData.arrowPose = rpcmsg::glmToRPC(arrowPose);
 
             // Player is ready to shoot
-            if (newPlayerData[playerID].arrowReadying == true) {
-
+            if (this->gameData.playerData[playerID].arrowReadying == true) {
+                std::cout << "Readying";
                 // Check if user is releasing arrow
                 if (newPlayerData[playerID].handData[playerDominantHand].indexTriggerValue < 0.5f) {
 
                     // Store new variables for projectile calculation
                     updatedPlayerData[playerID].arrowData.initPosition = rpcmsg::glmToRPC(dominantHandPosition);
-                    updatedPlayerData[playerID].arrowData.initVelocity = rpcmsg::glmToRPC((arrowReloadZone - dominantHandPosition) * ARROW_VELOCITY_SCALE);
+                    updatedPlayerData[playerID].arrowData.initVelocity = rpcmsg::glmToRPC((nonDominantHandPosition - dominantHandPosition) * ARROW_VELOCITY_SCALE);
 
                     updatedPlayerData[playerID].arrowReleased = true;
                     updatedPlayerData[playerID].arrowReadying = false;
@@ -165,7 +169,6 @@ void GameEngine::updatePlayerData()
 
             // Player is not readying to shoot
             else {
-
                 // Check if user is readying up to shoot
                 if (glm::length(arrowReadyUpZone - dominantHandPosition) < ARROW_READY_ZONE_RADIUS)
                     if (newPlayerData[playerID].handData[playerDominantHand].indexTriggerValue > 0.5f)
@@ -193,10 +196,10 @@ void GameEngine::updatePlayerData()
 
 void GameEngine::updateArrowData() {
 
-    for (auto player = this->gameData.playerData.begin(); player != this->gameData.playerData.begin(); player++) {
+    for (auto player = this->gameData.playerData.begin(); player != this->gameData.playerData.end(); player++) {
         
         uint32_t playerID = player->first;
-        glm::vec3 arrowPosition = rpcmsg::rpcToGLM(this->gameData.playerData[playerID].arrowData.arrowPose) * glm::vec4(0.0f);
+        glm::vec3 arrowPosition = rpcmsg::rpcToGLM(this->gameData.playerData[playerID].arrowData.arrowPose)[3];
 
         // Update arrow projectile if arrow is in the air
         if (this->gameData.playerData[playerID].arrowReleased && (arrowPosition.y > 0.0f)) {
@@ -208,7 +211,7 @@ void GameEngine::updateArrowData() {
             glm::vec3 arrowPosition = this->calculateProjectilePosition(initArrowVelocity, initArrowPosition, initArrowLaunchTime);
             glm::vec3 arrowVelocity = this->calculateProjectileVelocity(initArrowVelocity, initArrowLaunchTime);
 
-            glm::mat4 arrowPose = glm::lookAt(glm::vec3(0.0f), arrowVelocity, glm::vec3(0.0f, 1.0f, 0.0f));
+            glm::mat4 arrowPose = glm::mat4(1.0f);// glm::lookAt(glm::vec3(0.0f), arrowVelocity, glm::vec3(0.0f, 1.0f, 0.0f));
             arrowPose = glm::translate(glm::mat4(1.0f), arrowPosition) * arrowPose;
             this->gameData.playerData[playerID].arrowData.arrowPose = rpcmsg::glmToRPC(arrowPose);
         }
@@ -221,8 +224,8 @@ void GameEngine::updateCastleCrasher() {
     for (auto player = this->gameData.playerData.begin(); player != this->gameData.playerData.begin(); player++) {
 
         uint32_t playerID = player->first;
-        glm::vec3 arrowPosition = rpcmsg::rpcToGLM(this->gameData.playerData[playerID].arrowData.arrowPose) * glm::vec4(0.0f);
-
+        glm::vec3 arrowPosition = rpcmsg::rpcToGLM(this->gameData.playerData[playerID].arrowData.arrowPose)[3];
+        
         if (this->gameData.playerData[playerID].arrowReleased && (arrowPosition.y < 0.0f)) {
             for (auto castleCrasher = this->gameData.gameState.castleCrasherData.begin(); castleCrasher != this->gameData.gameState.castleCrasherData.end(); castleCrasher++) {
                 if (castleCrasher->alive) {

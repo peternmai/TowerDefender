@@ -1,0 +1,259 @@
+#include "TowerDefender.hpp"
+
+#include <string>
+#include <iostream>
+#include <memory>
+#include <vector>
+#include <thread>
+
+TowerDefender::TowerDefender(std::string ipAddress, int portNumber) 
+{
+    // Create an instance of the game client to communicate with the server
+    this->gameClient = std::make_unique<GameClient>(ipAddress, portNumber);
+    this->sessionActive = true;
+    this->playerID = 0;
+    this->playerTower = 0;
+
+    // Create new background thread to sync with server
+    std::thread syncServerThread = std::thread(&TowerDefender::syncWithServer, this);
+    syncServerThread.detach();
+}
+
+TowerDefender::~TowerDefender() {}
+
+void TowerDefender::shutdownGl() {
+    this->sessionActive = false;
+    std::this_thread::sleep_for(std::chrono::seconds(1));
+}
+
+void TowerDefender::initGl() {
+    RiftApp::initGl();
+    glClearColor(0.7f, 0.87f, 0.9f, 0.0f);
+    glEnable(GL_DEPTH_TEST);
+    ovr_RecenterTrackingOrigin(_session);
+
+    // Load in shader program
+    this->nonTexturedShaderID = LoadShaders(NONTEXTURED_GEOMETRY_VERTEX_SHADER_PATH, NONTEXTURED_GEOMETRY_FRAGMENT_SHADER_PATH);
+
+    // Load in the environment
+    this->environmentObject = std::make_unique<OBJObject>(
+        std::string(ENVIRONMENT_OBJECT_PATH), MAP_SIZE);
+    this->environmentTransforms = glm::mat4(1.0f);
+    this->environmentTransforms = glm::rotate(glm::mat4(1.0f), glm::radians(180.0f), glm::vec3(0.0f, 1.0f, 0.0f)) * this->environmentTransforms;
+    this->environmentTransforms = glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, MAP_TRANSLATE_UP_OFFSET, 0.0f)) * this->environmentTransforms;
+
+    // Load in objects to render
+    this->bowObject = std::make_unique<OBJObject>(std::string(BOW_OBJECT_PATH), 1.0f);
+    this->arrowObject = std::make_unique<OBJObject>(std::string(ARROW_OBJECT_PATH), 1.0f);
+    this->sphereObject = std::make_unique<OBJObject>(std::string(SPHERE_OBJECT_PATH), 0.1f);
+
+    // Get a copy of the current game state
+    this->gameData = this->gameClient->syncGameState();
+}
+
+void TowerDefender::update() 
+{
+    ovrInputState inputState;
+    if (OVR_SUCCESS(ovr_GetInputState(_session, ovrControllerType_Touch, &inputState)))
+    {
+        // Update which tower the user is on
+        if (inputState.Buttons & ovrButton::ovrButton_X)
+            this->playerTower = 0;
+        if (inputState.Buttons & ovrButton::ovrButton_A)
+            this->playerTower = 1;
+    }
+}
+
+// Sync with server. This should be its own thread
+void TowerDefender::syncWithServer()
+{
+    // Calculate the desired sleep duration between sync
+    std::chrono::nanoseconds sleepDuration = std::chrono::nanoseconds(NANOSECONDS_IN_SECOND / SYNC_RATE);
+
+    // Continue to update while connection is alive
+    while ((this->sessionActive) && (this->gameClient->getConnectionState() == rpc::client::connection_state::connected)) 
+    {
+        // Request update from server and keep track of total time it took
+        auto start = std::chrono::high_resolution_clock::now();
+        if (this->playerID != 0) {
+            bool successful = this->gameClient->updatePlayerData(this->getOculusPlayerState());
+            auto updatedGameData = this->gameClient->syncGameState();
+            this->gameDataLock.lock();
+            this->gameData = updatedGameData;
+            this->gameDataLock.unlock();
+            if (successful == false)
+                this->playerID = 0;
+        }
+
+        // Sleep until the next desired sync time based on refresh rate
+        auto end = std::chrono::high_resolution_clock::now();
+        std::chrono::nanoseconds computeDuration =
+            std::chrono::duration_cast<std::chrono::nanoseconds>(end - start);
+        std::this_thread::sleep_for(sleepDuration - computeDuration);
+    }
+}
+
+rpcmsg::PlayerData TowerDefender::getOculusPlayerState()
+{
+    // Create data about the user
+    rpcmsg::PlayerData playerData;
+    playerData.headData.headPose = rpcmsg::glmToRPC(this->getHeadInformation());
+
+    // Fill out data on each hand
+    auto playerHandData = this->getHandInformation();
+    ovrInputState inputState;
+    if (OVR_SUCCESS(ovr_GetInputState(_session, ovrControllerType_Touch, &inputState)))
+    {
+        for (int handType = 0; handType < 2; handType++) {
+            playerData.handData[handType].handPose = rpcmsg::glmToRPC(playerHandData[handType]);
+            playerData.handData[handType].thumbstickValue.x = inputState.Thumbstick[handType].x;
+            playerData.handData[handType].thumbstickValue.y = inputState.Thumbstick[handType].y;
+            playerData.handData[handType].buttonState = inputState.Buttons;
+            playerData.handData[handType].indexTriggerValue = inputState.IndexTrigger[handType];
+            playerData.handData[handType].handTriggerValue = inputState.HandTrigger[handType];
+        }
+    }
+
+    return playerData;
+}
+
+
+void TowerDefender::registerPlayer()
+{
+    // Initialize player data
+    std::cout << "Attempting to register player..." << std::endl;
+    rpcmsg::PlayerData playerData = this->getOculusPlayerState();
+    playerData.arrowData.arrowPose = rpcmsg::glmToRPC(glm::translate(glm::mat4(1.0f), glm::vec3(-1.0f)));
+    playerData.dominantHand = RIGHT_HAND;
+    playerData.arrowReleased = true;
+    playerData.arrowReadying = false;
+    this->playerID = this->gameClient->registerNewPlayerSession(playerData);
+
+    // If server does not accept new player at the moment, keep trying
+    while (this->playerID == 0) {
+        std::cout << "\tServer is full. Retrying..." << std::endl;
+        std::this_thread::sleep_for(std::chrono::seconds(5));
+        this->playerID = this->gameClient->registerNewPlayerSession(playerData);
+    }
+
+    std::cout << "\tSuccessfully registered as playerID: " << this->playerID << std::endl;
+}
+
+void TowerDefender::renderScene(const glm::mat4 & projection, const glm::mat4 & headPose)
+{
+    // Register player if we haven't. This is a blocking call
+    if (this->playerID == 0)
+        this->registerPlayer();
+
+    // Calculate user translated position
+    glm::mat4 translatedHeadPose = glm::translate(glm::mat4(1.0f), USER_TRANSLATION[playerTower]) * headPose;
+
+    // Draw out the environment
+    this->environmentObject->draw(this->nonTexturedShaderID, projection, glm::inverse(translatedHeadPose), this->environmentTransforms);
+
+    // Draw out the user
+    this->gameDataLock.lock();
+    rpcmsg::GameData gameDataInstance = this->gameData;
+    this->gameDataLock.unlock();
+    for (auto player = gameDataInstance.playerData.begin(); player != gameDataInstance.playerData.end(); player++) {
+        
+        uint32_t playerID = player->first;
+        uint32_t playerDominantHand = gameDataInstance.playerData[playerID].dominantHand;
+        uint32_t playerNonDominantHand = (playerDominantHand == LEFT_HAND) ? RIGHT_HAND : LEFT_HAND;
+
+        glm::mat4 playerDominantHandTransform = rpcmsg::rpcToGLM(gameDataInstance.playerData[playerID].handData[playerDominantHand].handPose);
+        glm::mat4 playerNonDominantHandTransform = rpcmsg::rpcToGLM(gameDataInstance.playerData[playerID].handData[playerNonDominantHand].handPose);
+
+        // Use Oculus's hand data if rendering for current user (smoother)
+        /**
+        if (playerID == this->playerID) {
+            std::vector<glm::mat4> systemHandInfo = this->getHandInformation();
+            playerDominantHandTransform = systemHandInfo[playerDominantHand];
+            playerNonDominantHandTransform = systemHandInfo[playerNonDominantHand];
+        }*/
+        
+        glm::mat4 bowTransform = glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.0f, 0.1f));
+        bowTransform = playerNonDominantHandTransform * bowTransform;
+        glm::mat4 arrowTransform = rpcmsg::rpcToGLM(gameDataInstance.playerData[playerID].arrowData.arrowPose);
+
+        // Draw out player head
+        if(playerID != this->playerID) {}
+
+        // Draw out player's bow and arrow
+        this->bowObject->draw(this->nonTexturedShaderID, projection, glm::inverse(translatedHeadPose), bowTransform);
+        this->arrowObject->draw(this->nonTexturedShaderID, projection, glm::inverse(translatedHeadPose), arrowTransform);
+
+        // Draw out player's hands
+        this->sphereObject->draw(this->nonTexturedShaderID, projection, glm::inverse(translatedHeadPose), playerDominantHandTransform);
+        this->sphereObject->draw(this->nonTexturedShaderID, projection, glm::inverse(translatedHeadPose), playerNonDominantHandTransform);
+
+        glm::vec3 arrowPos = arrowTransform[3];
+        std::cout << arrowPos.x << " " << arrowPos.y << " " << arrowPos.z << std::endl;
+    }
+
+}
+
+glm::mat4 TowerDefender::getHeadInformation() 
+{
+    // Query Touch controllers. Query their parameters:
+    double displayMidpointSeconds = ovr_GetPredictedDisplayTime(_session, 0);
+    ovrTrackingState trackState = ovr_GetTrackingState(_session, displayMidpointSeconds, ovrTrue);
+    return (glm::translate(glm::mat4(1.0f), USER_TRANSLATION[this->playerTower]) * ovr::toGlm(trackState.HeadPose.ThePose));
+}
+
+std::vector<glm::mat4> TowerDefender::getHandInformation()
+{
+    // Query Touch controllers. Query their parameters:
+    double displayMidpointSeconds = ovr_GetPredictedDisplayTime(_session, 0);
+    ovrTrackingState trackState = ovr_GetTrackingState(_session, displayMidpointSeconds, ovrTrue);
+
+    // Process controller status. Useful to know if controller is being used at all, and if the cameras can see it. 
+    // Bits reported:
+    // Bit 1: ovrStatus_OrientationTracked  = Orientation is currently tracked (connected and in use)
+    // Bit 2: ovrStatus_PositionTracked     = Position is currently tracked (false if out of range)
+    unsigned int handStatus[2];
+    handStatus[0] = trackState.HandStatusFlags[0];
+    handStatus[1] = trackState.HandStatusFlags[1];
+
+    // Process controller position and orientation:
+    ovrPosef handPoses[2];  // These are position and orientation in meters in room coordinates, relative to tracking origin. Right-handed cartesian coordinates.
+                            // ovrQuatf     Orientation;
+                            // ovrVector3f  Position;
+    handPoses[ovrHand_Left] = trackState.HandPoses[ovrHand_Left].ThePose;
+    handPoses[ovrHand_Right] = trackState.HandPoses[ovrHand_Right].ThePose;
+
+    std::vector<glm::mat4> handInformation;
+    handInformation.push_back(glm::translate(glm::mat4(1.0f), USER_TRANSLATION[this->playerTower]) * ovr::toGlm(handPoses[0]));
+    handInformation.push_back(glm::translate(glm::mat4(1.0f), USER_TRANSLATION[this->playerTower]) * ovr::toGlm(handPoses[1]));
+    return handInformation;
+}
+
+// Start the Tower Defender Oculus game
+//int __stdcall WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow) {
+int main(int argc, char** argv)
+{
+    std::string ipAddress;
+    int portNumber;
+
+    std::cout << "Please enter IP address  of server: ";
+    std::cin >> ipAddress;
+
+    std::cout << "Please enter port number of server: ";
+    std::cin >> portNumber;
+
+    // Launch the game on the Oculus Rift
+    int result = -1;
+    try {
+        if (!OVR_SUCCESS(ovr_Initialize(nullptr))) {
+            FAIL("Failed to initialize the Oculus SDK");
+        }
+        result = TowerDefender(ipAddress, portNumber).run();
+    }
+    catch (std::exception & error) {
+        OutputDebugStringA(error.what());
+        std::cerr << error.what() << std::endl;
+    }
+    ovr_Shutdown();
+
+    return 0;
+}

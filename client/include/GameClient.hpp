@@ -23,9 +23,10 @@ public:
     GameClient(std::string ipAddress, int portNumber);
     ~GameClient();
 
-    bool registerNewPlayerSession();
-    bool updatePlayerData(rpcmsg::PlayerData const & playerData);
+    uint32_t registerNewPlayerSession(const rpcmsg::PlayerData & playerData);
+    bool updatePlayerData(const rpcmsg::PlayerData & playerData);
     rpcmsg::GameData syncGameState();
+    rpc::client::connection_state getConnectionState();
 
 
 };
