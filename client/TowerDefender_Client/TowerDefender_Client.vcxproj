@@ -21,6 +21,7 @@
   <ItemGroup>
     <ClCompile Include="..\..\shared\src\rpcMessages.cpp" />
     <ClCompile Include="..\src\GameClient.cpp" />
+    <ClCompile Include="..\src\Lines.cpp" />
     <ClCompile Include="..\src\OBJObject.cpp" />
     <ClCompile Include="..\src\shader.cpp" />
     <ClCompile Include="..\src\TowerDefender.cpp" />
@@ -39,6 +40,7 @@
     <ClInclude Include="..\include\OBJObject.hpp" />
     <ClInclude Include="..\include\shader.hpp" />
     <ClInclude Include="..\include\TowerDefender.hpp" />
+    <ClInclude Include="..\src\Lines.hpp" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>15.0</VCProjectVersion>

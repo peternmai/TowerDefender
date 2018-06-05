@@ -85,7 +85,7 @@ namespace rpcmsg {
         uint32_t                        dominantHand;
         bool                            arrowReleased;
         bool                            arrowReadying;
-        MSGPACK_DEFINE_ARRAY(headData, handData, arrowData, dominantHand, arrowReleased);
+        MSGPACK_DEFINE_ARRAY(headData, handData, arrowData, dominantHand, arrowReleased, arrowReadying);
     };
 
     // RPC message that holds all data relating to a single castle crasher
@@ -101,8 +101,9 @@ namespace rpcmsg {
         bool     gameStarted;
         uint32_t gameScore;
         uint32_t castleHealth;
-        std::vector<rpcmsg::CastleCrasherData> castleCrasherData;
-        MSGPACK_DEFINE_ARRAY(gameStarted, gameScore, castleHealth, castleCrasherData);
+        std::list<rpcmsg::CastleCrasherData> castleCrasherData;
+        std::list<rpcmsg::ArrowData> flyingArrows;
+        MSGPACK_DEFINE_ARRAY(gameStarted, gameScore, castleHealth, castleCrasherData, flyingArrows);
     };
 
     // RPC message that holds a copy of the entire game state

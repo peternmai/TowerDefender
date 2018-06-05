@@ -463,9 +463,9 @@ public:
             _renderTargetSize.y = std::max(_renderTargetSize.y, (uint32_t)eyeSize.h);
             _renderTargetSize.x += eyeSize.w;
         });
-        // Make the on screen window 1/4 the resolution of the render target
+        // Make the on screen window 1/2 the resolution of the render target
         _mirrorSize = _renderTargetSize;
-        _mirrorSize /= 4;
+        _mirrorSize /= 2;
     }
 
 protected:

@@ -45,7 +45,9 @@ void TowerDefender::initGl() {
     // Load in objects to render
     this->bowObject = std::make_unique<OBJObject>(std::string(BOW_OBJECT_PATH), 1.0f);
     this->arrowObject = std::make_unique<OBJObject>(std::string(ARROW_OBJECT_PATH), 1.0f);
-    this->sphereObject = std::make_unique<OBJObject>(std::string(SPHERE_OBJECT_PATH), 0.1f);
+    this->sphereObject = std::make_unique<OBJObject>(std::string(SPHERE_OBJECT_PATH), HAND_SIZE);
+    this->helmetObject = std::make_unique<OBJObject>(std::string(HELMET_OBJECT_PATH), HELMET_SIZE);
+    this->lineObject = std::make_unique<Lines>();
 
     // Get a copy of the current game state
     this->gameData = this->gameClient->syncGameState();
@@ -172,25 +174,62 @@ void TowerDefender::renderScene(const glm::mat4 & projection, const glm::mat4 & 
             playerNonDominantHandTransform = systemHandInfo[playerNonDominantHand];
         }*/
         
+        glm::mat4 playerHeadPose = rpcmsg::rpcToGLM(gameDataInstance.playerData[playerID].headData.headPose);
         glm::mat4 bowTransform = glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.0f, 0.1f));
         bowTransform = playerNonDominantHandTransform * bowTransform;
         glm::mat4 arrowTransform = rpcmsg::rpcToGLM(gameDataInstance.playerData[playerID].arrowData.arrowPose);
 
+        glm::mat4 bowStringTopTransform = bowTransform * glm::translate(glm::mat4(1.0f), ARROW_STRING_LOCATION[0]);
+        glm::mat4 bowStringDownTransform = bowTransform * glm::translate(glm::mat4(1.0f), ARROW_STRING_LOCATION[1]);
+
         // Draw out player head
-        if(playerID != this->playerID) {}
+        if (playerID != this->playerID)
+            this->helmetObject->draw(this->nonTexturedShaderID, projection, glm::inverse(translatedHeadPose), playerHeadPose);
 
         // Draw out player's bow and arrow
         this->bowObject->draw(this->nonTexturedShaderID, projection, glm::inverse(translatedHeadPose), bowTransform);
         this->arrowObject->draw(this->nonTexturedShaderID, projection, glm::inverse(translatedHeadPose), arrowTransform);
+        this->sphereObject->draw(this->nonTexturedShaderID, projection, glm::inverse(translatedHeadPose), arrowTransform);
 
         // Draw out player's hands
         this->sphereObject->draw(this->nonTexturedShaderID, projection, glm::inverse(translatedHeadPose), playerDominantHandTransform);
         this->sphereObject->draw(this->nonTexturedShaderID, projection, glm::inverse(translatedHeadPose), playerNonDominantHandTransform);
 
-        glm::vec3 arrowPos = arrowTransform[3];
-        std::cout << arrowPos.x << " " << arrowPos.y << " " << arrowPos.z << std::endl;
+        // Draw out the string of the arrow
+        if (gameDataInstance.playerData[playerID].arrowReadying) {
+            this->lineObject->drawLine(bowStringTopTransform[3], playerDominantHandTransform[3],
+                glm::vec3(0.0f), projection, glm::inverse(translatedHeadPose));
+            this->lineObject->drawLine(bowStringDownTransform[3], playerDominantHandTransform[3],
+                glm::vec3(0.0f), projection, glm::inverse(translatedHeadPose));
+        }
+        else
+            this->lineObject->drawLine(bowStringTopTransform[3], bowStringDownTransform[3],
+                glm::vec3(0.0f), projection, glm::inverse(translatedHeadPose));
+
+        // Draw out aim assist
+        if ((playerID == this->playerID) && gameDataInstance.playerData[playerID].arrowReadying) {
+            glm::vec3 initialPosition = playerDominantHandTransform[3];
+            glm::vec3 initialVelocity = (playerNonDominantHandTransform[3] - playerDominantHandTransform[3]) * ARROW_VELOCITY_SCALE;
+            glm::vec3 aimAssistCurrentDrawPosition = initialPosition;
+            float flyTimeInSeconds = 0.0f;
+            while (aimAssistCurrentDrawPosition.y > 0.0f) {
+                flyTimeInSeconds += 0.1f;
+                glm::vec3 aimAssistNextDrawPosition = initialPosition + (initialVelocity * 
+                    (flyTimeInSeconds)+ 0.5f * GRAVITY * glm::vec3(0.0f, std::pow(flyTimeInSeconds, 2), 0.0f));
+                this->lineObject->drawLine(aimAssistCurrentDrawPosition, aimAssistNextDrawPosition, 
+                    AIM_ASSIST_COLOR, projection, glm::inverse(translatedHeadPose));
+                aimAssistCurrentDrawPosition = aimAssistNextDrawPosition;
+            }
+        }
     }
 
+    // Draw out all arrows that are currently flying
+    for (auto flyingArrow = gameDataInstance.gameState.flyingArrows.begin(); 
+        flyingArrow != gameDataInstance.gameState.flyingArrows.end(); flyingArrow++) {
+        glm::mat4 arrowTransform = rpcmsg::rpcToGLM(flyingArrow->arrowPose);
+        this->arrowObject->draw(this->nonTexturedShaderID, projection, glm::inverse(translatedHeadPose), arrowTransform);
+        this->sphereObject->draw(this->nonTexturedShaderID, projection, glm::inverse(translatedHeadPose), arrowTransform);
+    }
 }
 
 glm::mat4 TowerDefender::getHeadInformation() 

@@ -1,16 +1,17 @@
 #include <thread>
 #include <chrono>
 #include <memory>
+#include <mutex>
 
 #include "rpcMessages.hpp"
 
-#define REFRESH_RATE           100
+#define REFRESH_RATE           200
 #define MILLISECONDS_IN_SECOND 1000
 #define NANOSECONDS_IN_SECOND  1000000000
 
 #define GRAVITY -9.81
 
-#define ARROW_VELOCITY_SCALE       0.01
+#define ARROW_VELOCITY_SCALE       50.0
 #define ARROW_RELOAD_ZONE_Z_OFFSET 0.30
 #define ARROW_RELOAD_ZONE_RADIUS   0.30
 #define ARROW_READY_ZONE_Z_OFFSET  0.30
@@ -24,6 +25,7 @@ class GameEngine
 private:
 
     rpcmsg::GameData gameData;
+    std::mutex gameDataLock;
     std::unordered_map<uint32_t, rpcmsg::PlayerData> newPlayerData;
 
     std::chrono::nanoseconds lastUpdateTime;
@@ -39,9 +41,9 @@ private:
 
     void updateService();
     void updateProcedure();
-    void updatePlayerData();
-    void updateArrowData();
-    void updateCastleCrasher();
+    rpcmsg::GameData updatePlayerData(const rpcmsg::GameData & previousGameData);
+    rpcmsg::GameData updateArrowData(const rpcmsg::GameData & previousGameData);
+    rpcmsg::GameData updateCastleCrasher(const rpcmsg::GameData & previousGameData);
 
 
 public:

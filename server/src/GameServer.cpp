@@ -3,6 +3,7 @@
 
 #include <cstdlib>
 #include <ctime>
+#include <random>
 
 bool DEBUG = true;
 
@@ -44,9 +45,11 @@ uint32_t GameServer::requestServerSession(const rpcmsg::PlayerData & playerData)
 
     // Create a new session for the user
     uint32_t playerID;
-    srand((unsigned int)time(NULL));
+    std::random_device randomDevice;
+    std::mt19937_64 randomGenerator(randomDevice());
+    std::uniform_int_distribution<unsigned long> distribution;
     do {
-        playerID = rand() % std::numeric_limits<uint32_t>::max();
+        playerID = (uint32_t)distribution(randomGenerator);
     } while ((playerID == 0) || (this->communicationMetadata.find(playerID) != this->communicationMetadata.end()));
     this->communicationMetadata[playerID] = { playerID, this->getCurrentTime() };
     this->updatePlayerData(playerID, playerData);
