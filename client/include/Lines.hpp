@@ -21,6 +21,6 @@ public:
     ~Lines();
 
     void drawLine(glm::vec3 startPoint, glm::vec3 endPoint, glm::vec3 color,
-        const glm::mat4 & projection, const glm::mat4 & camera);
+        const glm::mat4 & projection, const glm::mat4 & camera, float lineWidth = 5.0f);
 };
 

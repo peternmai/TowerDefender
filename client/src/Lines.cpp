@@ -35,7 +35,7 @@ Lines::~Lines()
 }
 
 void Lines::drawLine(glm::vec3 startPoint, glm::vec3 endPoint, glm::vec3 color,
-    const glm::mat4 & projection, const glm::mat4 & camera) {
+    const glm::mat4 & projection, const glm::mat4 & camera, float lineWidth) {
 
     // Update the points
     this->endPoints[0] = startPoint;
@@ -59,7 +59,7 @@ void Lines::drawLine(glm::vec3 startPoint, glm::vec3 endPoint, glm::vec3 color,
 
     // Make line bigger
     glEnable(GL_LINE_SMOOTH);
-    glLineWidth(5.0f);
+    glLineWidth(lineWidth);
 
     // Draw out the line
     glBindVertexArray(VAO);

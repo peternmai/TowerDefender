@@ -308,6 +308,16 @@ void TowerDefender::renderScene(const glm::mat4 & projection, const glm::mat4 & 
         }
     }
 
+    // Draw out the castle health bar
+    glm::vec3 healthBarRemainingLifeLocation = CASTLE_HEALTH_BAR_START_LOCATION;
+    healthBarRemainingLifeLocation.x -= gameDataInstance.gameState.castleHealth / 100.0f * HEALTH_BAR_WIDTH;
+    glm::vec3 healthBarEndLocation = CASTLE_HEALTH_BAR_START_LOCATION;
+    healthBarEndLocation.x -= HEALTH_BAR_WIDTH;
+    this->lineObject->drawLine(CASTLE_HEALTH_BAR_START_LOCATION, healthBarRemainingLifeLocation,
+        glm::vec3(0.0f, 1.0f, 0.0f), projection, glm::inverse(translatedHeadPose), (float)HEALTH_BAR_SIZE);
+    this->lineObject->drawLine(healthBarRemainingLifeLocation, healthBarEndLocation,
+        glm::vec3(1.0f, 0.0f, 0.0f), projection, glm::inverse(translatedHeadPose), (float)HEALTH_BAR_SIZE);
+
     // Draw out the score
     this->renderScore(projection, translatedHeadPose, gameDataInstance);
 

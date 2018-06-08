@@ -38,6 +38,8 @@
 #define SCORE_DIGIT_SIZE           20
 #define SCORE_DIGIT_SPACING        14
 #define NOTIFICATION_SIZE          7
+#define HEALTH_BAR_SIZE            200
+#define HEALTH_BAR_WIDTH           20
 
 #define SYNC_RATE                  200
 #define NANOSECONDS_IN_SECOND      1000000000
@@ -67,6 +69,7 @@ static const std::vector<glm::vec3> ARROW_STRING_LOCATION = {
     glm::vec3{ 0.03f, -0.4f, 0.1f }
 };
 
+static const glm::vec3 CASTLE_HEALTH_BAR_START_LOCATION = glm::vec3(10.0f, 15.0f, 20.0f);
 static const glm::vec3 AIM_ASSIST_COLOR = { 1.0f, 0.65f, 0.0f };
 static const glm::vec3 SCORE_TEXT_LOCATION = { 0.0f, 100.0f, -200.0f };
 static const glm::vec3 SCORE_CENTER_LOCATION = { 0.0f, 75.0f, -200.0f };

@@ -19,7 +19,7 @@ GameEngine::GameEngine()
     this->sleepDuration = std::chrono::nanoseconds(NANOSECONDS_IN_SECOND / REFRESH_RATE);
 
     // Initialize game data
-    this->gameData.gameState.castleHealth = CASTLE_MAX_HEALTH;
+    this->gameData.gameState.castleHealth = 100.0f;
     this->gameData.gameState.gameStarted = false;
     this->gameData.gameState.leftTowerReady = false;
     this->gameData.gameState.rightTowerReady = false;
@@ -348,14 +348,14 @@ rpcmsg::GameData GameEngine::updateGameState(const rpcmsg::GameData & previousGa
             if (updatedGameData.gameState.leftTowerReady && updatedGameData.gameState.rightTowerReady) {
                 updatedGameData.gameState.gameStarted = true;
                 updatedGameData.gameState.gameScore = 0;
-                updatedGameData.gameState.castleHealth = CASTLE_MAX_HEALTH;
+                updatedGameData.gameState.castleHealth = 100.0f;
             }
         }
     }
 
     // Else, check if game has ended
     else {
-        if (previousGameData.gameState.castleHealth == 0) {
+        if (previousGameData.gameState.castleHealth == 0.0f) {
             updatedGameData.gameState.gameStarted = false;
             updatedGameData.gameState.leftTowerReady = false;
             updatedGameData.gameState.rightTowerReady = false;
@@ -373,7 +373,7 @@ rpcmsg::GameData GameEngine::updateEasterEgg(const rpcmsg::GameData & previousGa
     uint32_t currentTime = (uint32_t)std::chrono::duration_cast<std::chrono::seconds>(
         std::chrono::high_resolution_clock::now().time_since_epoch()).count();
     if (currentTime != this->easterEggLastUpdateTimer) {
-        if (!previousGameData.gameState.gameStarted && (previousGameData.gameState.castleHealth != 0)) {
+        if (!previousGameData.gameState.gameStarted && (previousGameData.gameState.castleHealth != 0.0f)) {
             std::random_device randomDevice;
             std::mt19937_64 randomGenerator(randomDevice());
             std::uniform_int_distribution<unsigned long> distribution;

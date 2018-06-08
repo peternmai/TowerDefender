@@ -103,7 +103,7 @@ namespace rpcmsg {
     struct GameState {
         bool     gameStarted;
         uint32_t gameScore;
-        uint32_t castleHealth;
+        float    castleHealth;
         bool     leftTowerReady;
         bool     rightTowerReady;
         std::list<rpcmsg::CastleCrasherData> castleCrasherData;

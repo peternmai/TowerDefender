@@ -20,7 +20,6 @@
 #define ARROW_DAMAGE               20
 #define READY_UP_RADIUS            0.5
 
-#define CASTLE_MAX_HEALTH  10000
 #define CASTLE_CRASHER_HIT_RADIUS  1.50
 
 static const glm::vec3 ARROW_POSITION_OFFSET = glm::vec3{ -0.1f, 0.0f, -0.4f };
