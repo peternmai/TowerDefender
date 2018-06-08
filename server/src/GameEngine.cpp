@@ -1,5 +1,7 @@
 #include "GameEngine.hpp"
 
+#include <random>
+
 #include <LibOVR/OVR_CAPI.h>
 #include <LibOVR/OVR_CAPI_GL.h>
 
@@ -21,6 +23,21 @@ GameEngine::GameEngine()
     this->lastUpdateTime = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::high_resolution_clock::now().time_since_epoch());
     std::thread gameEngineService(&GameEngine::updateService, this);
     gameEngineService.detach();
+
+    std::thread tempThread([&] {
+        std::random_device randomDevice;
+        std::mt19937_64 randomGenerator(randomDevice());
+        std::uniform_int_distribution<unsigned long> distribution;
+        while (this->gameEngineServiceStatus) {
+            uint32_t number = (uint32_t)distribution(randomGenerator);
+            this->gameDataLock.lock();
+            this->gameData.gameState.gameScore = number;
+            this->gameDataLock.unlock();
+
+            std::this_thread::sleep_for(std::chrono::seconds(1));
+        }
+    });
+    tempThread.detach();
 
     std::cout << "\tSuccessfully started game engine service" << std::endl;
 }
@@ -97,6 +114,30 @@ glm::vec3 GameEngine::calculateProjectilePosition(const glm::vec3 & initVelocity
     return (initPosition + (initVelocity * (timeDiff)) + (0.5f * GRAVITY * glm::vec3(0.0f, std::pow(timeDiff, 2), 0.0f)));
 }
 
+// Calculate the new pose of the arrow that is flying
+glm::mat4 GameEngine::calculateFlyingArrowPose(const rpcmsg::ArrowData & arrowData)
+{
+    glm::vec3 initArrowPosition = rpcmsg::rpcToGLM(arrowData.initPosition);
+    glm::vec3 initArrowVelocity = rpcmsg::rpcToGLM(arrowData.initVelocity);
+    uint64_t  initArrowLaunchTime = arrowData.launchTimeMilliseconds;
+
+    glm::vec3 arrowPosition = this->calculateProjectilePosition(initArrowVelocity, initArrowPosition, initArrowLaunchTime);
+    glm::vec3 nextArrowPosition = this->calculateProjectilePosition(initArrowVelocity, initArrowPosition, initArrowLaunchTime + MILLISECONDS_IN_SECOND / 200);
+    glm::vec3 arrowVelocity = this->calculateProjectileVelocity(initArrowVelocity, initArrowLaunchTime);
+
+    glm::vec3 arrowDirection = (nextArrowPosition - arrowPosition);
+    float arrowYZ_Angle = ((float)glm::asin(arrowDirection.y / glm::length(arrowDirection)) + (float)M_PI) * -1.0f;
+    float arrowXZ_Angle = ((float)glm::atan(arrowDirection.z / arrowDirection.x) + (float)(1.5 * M_PI)) * -1.0f + glm::radians(15.0f);
+    if (arrowDirection.x < 0.0f)
+        arrowXZ_Angle += (float)M_PI;
+    glm::mat4 arrowPose = glm::translate(glm::mat4(1.0f), ARROW_POSITION_OFFSET);
+    arrowPose = glm::rotate(glm::mat4(1.0f), arrowYZ_Angle, glm::vec3(1.0f, 0.0f, 0.0f)) * arrowPose;
+    arrowPose = glm::rotate(glm::mat4(1.0f), arrowXZ_Angle, glm::vec3(0.0f, 1.0f, 0.0f)) * arrowPose;
+    arrowPose = glm::translate(glm::mat4(1.0f), arrowPosition) * arrowPose;
+
+    return arrowPose;
+}
+
 rpcmsg::GameData GameEngine::updatePlayerData(const rpcmsg::GameData & previousGameData)
 {
     // Get the new user input state
@@ -137,8 +178,7 @@ rpcmsg::GameData GameEngine::updatePlayerData(const rpcmsg::GameData & previousG
         glm::vec3 arrowReloadZone = glm::vec3((rpcmsg::rpcToGLM(newPlayerDataInstance[playerID].headData.headPose) * glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.0f, ARROW_RELOAD_ZONE_Z_OFFSET)))[3]);
         glm::vec3 dominantHandPosition = glm::vec3(rpcmsg::rpcToGLM(newPlayerDataInstance[playerID].handData[playerDominantHand].handPose)[3]);
         glm::vec3 nonDominantHandPosition = glm::vec3(rpcmsg::rpcToGLM(newPlayerDataInstance[playerID].handData[playerNonDominantHand].handPose)[3]);
-        //std::cout << nonDominantHandPosition.x << " " << nonDominantHandPosition.y << " " << nonDominantHandPosition.z << " | "
-        //    << arrowReadyUpZone.x << " " << arrowReadyUpZone.y << " " << arrowReadyUpZone.z << " " << glm::length(arrowReadyUpZone - dominantHandPosition) << std::endl;
+        glm::mat4 dominantHandTransform = rpcmsg::rpcToGLM(newPlayerData[playerID].handData[playerDominantHand].handPose);
 
         // Player released arrow (arrowReleased == true)
         if (previousPlayerData[playerID].arrowReleased == true) {
@@ -157,27 +197,35 @@ rpcmsg::GameData GameEngine::updatePlayerData(const rpcmsg::GameData & previousG
 
         // Player is currently holding the arrow (arrowReleased == false && holding)
         else if (newPlayerDataInstance[playerID].handData[playerDominantHand].handTriggerValue > 0.5f) {
-
-            // Update the pose of the arrow
-            glm::mat4 arrowPose = glm::mat4(1.0f);// glm::lookAt(dominantHandPosition, nonDominantHandPosition, glm::vec3(0.0f, 1.0f, 0.0f));
-            arrowPose = glm::rotate(glm::mat4(1.0f), 45.0f, glm::normalize(nonDominantHandPosition - dominantHandPosition));
-            arrowPose = glm::translate(glm::mat4(1.0f), dominantHandPosition) * arrowPose;
-            updatedPlayerData[playerID].arrowData.arrowPose = rpcmsg::glmToRPC(arrowPose);
+            glm::mat4 arrowPose = glm::translate(glm::mat4(1.0f), ARROW_POSITION_OFFSET);
 
             // Player is ready to shoot
             if (previousPlayerData[playerID].arrowReadying == true) {
+
+                // Update arrow pose
+                glm::vec3 arrowDirection = (nonDominantHandPosition - dominantHandPosition);
+                float arrowYZ_Angle = ((float)glm::asin(arrowDirection.y / glm::length(arrowDirection)) + (float)M_PI) * -1.0f;
+                float arrowXZ_Angle = ((float)glm::atan(arrowDirection.z / arrowDirection.x) + (float)(1.5 * M_PI)) * -1.0f + glm::radians(15.0f);
+                if (arrowDirection.x < 0.0f)
+                    arrowXZ_Angle += (float)M_PI;
+                glm::mat4 arrowPose = glm::translate(glm::mat4(1.0f), ARROW_POSITION_OFFSET);
+                arrowPose = glm::rotate(glm::mat4(1.0f), arrowYZ_Angle, glm::vec3(1.0f, 0.0f, 0.0f)) * arrowPose;
+                arrowPose = glm::rotate(glm::mat4(1.0f), arrowXZ_Angle, glm::vec3(0.0f, 1.0f, 0.0f)) * arrowPose;
+                arrowPose = glm::translate(glm::mat4(1.0f), dominantHandPosition) * arrowPose;
+                updatedPlayerData[playerID].arrowData.arrowPose = rpcmsg::glmToRPC(arrowPose);
 
                 // Check if user is releasing arrow
                 if (newPlayerDataInstance[playerID].handData[playerDominantHand].indexTriggerValue < 0.5f) {
 
                     // Store new variables for projectile calculation
-                    updatedPlayerData[playerID].arrowData.initPosition = rpcmsg::glmToRPC(dominantHandPosition);
+                    updatedPlayerData[playerID].arrowData.initPosition = rpcmsg::glmToRPC(glm::vec3(arrowPose[3]));
                     updatedPlayerData[playerID].arrowData.initVelocity = rpcmsg::glmToRPC((nonDominantHandPosition - dominantHandPosition) * ARROW_VELOCITY_SCALE);
                     updatedPlayerData[playerID].arrowData.launchTimeMilliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(
                         std::chrono::high_resolution_clock::now().time_since_epoch()).count();
 
                     updatedPlayerData[playerID].arrowReleased = true;
                     updatedPlayerData[playerID].arrowReadying = false;
+                    updatedPlayerData[playerID].arrowFiringAudioCue++;
 
                     updatedGameData.gameState.flyingArrows.push_back(updatedPlayerData[playerID].arrowData);
 
@@ -188,11 +236,20 @@ rpcmsg::GameData GameEngine::updatePlayerData(const rpcmsg::GameData & previousG
 
             // Player is not readying to shoot
             else {
+
+                // Update arrow pose
+                arrowPose = dominantHandTransform * arrowPose;
+                updatedPlayerData[playerID].arrowData.arrowPose = rpcmsg::glmToRPC(arrowPose);
+
                 // Check if user is readying up to shoot
-                if (glm::length(arrowReadyUpZone - dominantHandPosition) < ARROW_READY_ZONE_RADIUS)
-                    if (previousPlayerData[playerID].handData[playerDominantHand].indexTriggerValue < 0.5f)
-                        if (newPlayerDataInstance[playerID].handData[playerDominantHand].indexTriggerValue >= 0.5f)
+                if (glm::length(arrowReadyUpZone - dominantHandPosition) < ARROW_READY_ZONE_RADIUS) {
+                    if (previousPlayerData[playerID].handData[playerDominantHand].indexTriggerValue < 0.5f) {
+                        if (newPlayerDataInstance[playerID].handData[playerDominantHand].indexTriggerValue >= 0.5f) {
                             updatedPlayerData[playerID].arrowReadying = true;
+                            updatedPlayerData[playerID].arrowStretchingAudioCue++;
+                        }
+                    }
+                }
             }
         }
 
@@ -224,17 +281,9 @@ rpcmsg::GameData GameEngine::updateArrowData(const rpcmsg::GameData & previousGa
 
         // Update arrow projectile if arrow is in the air
         if (updatedGameData.playerData[playerID].arrowReleased && (arrowPosition.y > 0.0f)) {
-
-            glm::vec3 initArrowPosition = rpcmsg::rpcToGLM(updatedGameData.playerData[playerID].arrowData.initPosition);
-            glm::vec3 initArrowVelocity = rpcmsg::rpcToGLM(updatedGameData.playerData[playerID].arrowData.initVelocity);
-            uint64_t  initArrowLaunchTime = updatedGameData.playerData[playerID].arrowData.launchTimeMilliseconds;
-
-            glm::vec3 arrowPosition = this->calculateProjectilePosition(initArrowVelocity, initArrowPosition, initArrowLaunchTime);
-            glm::vec3 arrowVelocity = this->calculateProjectileVelocity(initArrowVelocity, initArrowLaunchTime);
-
-            glm::mat4 arrowPose = glm::mat4(1.0f);// glm::lookAt(glm::vec3(0.0f), arrowVelocity, glm::vec3(0.0f, 1.0f, 0.0f));
-            arrowPose = glm::translate(glm::mat4(1.0f), arrowPosition) * arrowPose;
+            glm::mat4 arrowPose = this->calculateFlyingArrowPose(updatedGameData.playerData[playerID].arrowData);
             updatedGameData.playerData[playerID].arrowData.arrowPose = rpcmsg::glmToRPC(arrowPose);
+            updatedGameData.playerData[playerID].arrowData.position = rpcmsg::glmToRPC(glm::vec3(arrowPose[3]));
         }
     }
 
@@ -242,18 +291,9 @@ rpcmsg::GameData GameEngine::updateArrowData(const rpcmsg::GameData & previousGa
     for (auto flyingArrow = updatedGameData.gameState.flyingArrows.begin(); flyingArrow != updatedGameData.gameState.flyingArrows.end(); ) {
         
         if (rpcmsg::rpcToGLM(flyingArrow->arrowPose)[3].y > 0.0f) {
-
-            glm::vec3 initArrowPosition = rpcmsg::rpcToGLM(flyingArrow->initPosition);
-            glm::vec3 initArrowVelocity = rpcmsg::rpcToGLM(flyingArrow->initVelocity);
-            uint64_t  initArrowLaunchTime = flyingArrow->launchTimeMilliseconds;
-
-            glm::vec3 arrowPosition = this->calculateProjectilePosition(initArrowVelocity, initArrowPosition, initArrowLaunchTime);
-            glm::vec3 arrowVelocity = this->calculateProjectileVelocity(initArrowVelocity, initArrowLaunchTime);
-
-            glm::mat4 arrowPose = glm::mat4(1.0f);
-            arrowPose = glm::translate(glm::mat4(1.0f), arrowPosition) * arrowPose;
+            glm::mat4 arrowPose = this->calculateFlyingArrowPose(*flyingArrow);
             flyingArrow->arrowPose = rpcmsg::glmToRPC(arrowPose);
-
+            flyingArrow->position = rpcmsg::glmToRPC(glm::vec3(arrowPose[3]));
             flyingArrow++;
         }
         else

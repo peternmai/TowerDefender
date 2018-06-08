@@ -19,7 +19,7 @@ int main() {
     GameServer gameServer(portNumber);
 
     // Wait for user to decide to stop the program
-    std::cout << "\tPress [ENTER] anytime to stop the server";
+    std::cout << "\tPress [ENTER] anytime to stop the server" << std::endl;
     std::cin.ignore();
     gameServer.stop();
 

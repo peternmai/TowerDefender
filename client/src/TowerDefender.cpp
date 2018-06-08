@@ -17,6 +17,9 @@ TowerDefender::TowerDefender(std::string ipAddress, int portNumber)
     // Create new background thread to sync with server
     std::thread syncServerThread = std::thread(&TowerDefender::syncWithServer, this);
     syncServerThread.detach();
+
+    // Create an audio session
+    this->audioPlayer = std::make_unique<AudioPlayer>();
 }
 
 TowerDefender::~TowerDefender() {}
@@ -45,9 +48,25 @@ void TowerDefender::initGl() {
     // Load in objects to render
     this->bowObject = std::make_unique<OBJObject>(std::string(BOW_OBJECT_PATH), 1.0f);
     this->arrowObject = std::make_unique<OBJObject>(std::string(ARROW_OBJECT_PATH), 1.0f);
-    this->sphereObject = std::make_unique<OBJObject>(std::string(SPHERE_OBJECT_PATH), HAND_SIZE);
-    this->helmetObject = std::make_unique<OBJObject>(std::string(HELMET_OBJECT_PATH), HELMET_SIZE);
+    this->sphereObject = std::make_unique<OBJObject>(std::string(SPHERE_OBJECT_PATH), (float) HAND_SIZE);
+    this->helmetObject = std::make_unique<OBJObject>(std::string(HELMET_OBJECT_PATH), (float) HELMET_SIZE);
+    this->scoreTextObject = std::make_unique<OBJObject>(std::string(SCORE_TEXT_OBJECT_PATH), (float) SCORE_TEXT_SIZE);
+
+    // Load in each of the number
+    for (int i = 0; i < TOTAL_SINGLE_DIGIT; i++)
+        this->numberObject[i] = std::make_unique<OBJObject>(std::string(
+            NUMBER_OBJECT_PATH) + std::to_string(i) + ".obj", (float) SCORE_DIGIT_SIZE);
+
+    // Load in object to draw lines
     this->lineObject = std::make_unique<Lines>();
+
+    // Load in all the music files
+    this->audioPlayer->loadAudioFile(CALM_BACKGROUND_AUDIO_PATH);
+    this->audioPlayer->loadAudioFile(ARROW_FIRING_AUDIO_PATH);
+    this->audioPlayer->loadAudioFile(ARROW_STRETCHING_AUDIO_PATH);
+
+    // Start playing background music
+    this->audioPlayer->play(CALM_BACKGROUND_AUDIO_PATH, true);
 
     // Get a copy of the current game state
     this->gameData = this->gameClient->syncGameState();
@@ -129,6 +148,8 @@ void TowerDefender::registerPlayer()
     playerData.dominantHand = RIGHT_HAND;
     playerData.arrowReleased = true;
     playerData.arrowReadying = false;
+    playerData.arrowFiringAudioCue = 0;
+    playerData.arrowStretchingAudioCue = 0;
     this->playerID = this->gameClient->registerNewPlayerSession(playerData);
 
     // If server does not accept new player at the moment, keep trying
@@ -139,6 +160,47 @@ void TowerDefender::registerPlayer()
     }
 
     std::cout << "\tSuccessfully registered as playerID: " << this->playerID << std::endl;
+}
+
+void TowerDefender::handleAudioUpdate(rpcmsg::GameData & currentGameData,
+     rpcmsg::GameData & previousGameData)
+{
+    // See if we should change background audio
+    if (currentGameData.gameState.gameStarted != previousGameData.gameState.gameStarted) {
+        if (currentGameData.gameState.gameStarted == true)
+            this->audioPlayer->play(CALM_BACKGROUND_AUDIO_PATH, true);
+        else
+            this->audioPlayer->play(CALM_BACKGROUND_AUDIO_PATH, true);
+    }
+
+    // See if we should play audio for user shooting / stretching arrow
+    if (currentGameData.playerData.find(this->playerID) != currentGameData.playerData.end()) {
+        if (previousGameData.playerData.find(this->playerID) != previousGameData.playerData.end()) {
+            if (currentGameData.playerData[this->playerID].arrowFiringAudioCue != previousGameData.playerData[this->playerID].arrowFiringAudioCue) {
+                this->audioPlayer->play(ARROW_FIRING_AUDIO_PATH);
+                this->audioPlayer->stop(ARROW_STRETCHING_AUDIO_PATH);
+            }
+            if (currentGameData.playerData[this->playerID].arrowStretchingAudioCue != previousGameData.playerData[this->playerID].arrowStretchingAudioCue)
+                this->audioPlayer->play(ARROW_STRETCHING_AUDIO_PATH);
+        }
+    }
+
+}
+
+void TowerDefender::renderScore(const glm::mat4 & projection,
+    const glm::mat4 & headPose, rpcmsg::GameData & currentGameData)
+{
+    glm::mat4 scoreTextTransform = glm::translate(glm::mat4(1.0f), SCORE_TEXT_LOCATION);
+    this->scoreTextObject->draw(this->nonTexturedShaderID, projection, glm::inverse(headPose), scoreTextTransform);
+
+    uint32_t score = currentGameData.gameState.gameScore;
+    for (int i = 0; i < TOTAL_SCORE_DIGIT; i++) {
+        glm::mat4 scoreDigitTransform = glm::translate(glm::mat4(1.0f), SCORE_CENTER_LOCATION);
+        glm::vec3 positionOffset = glm::vec3((float)((TOTAL_SCORE_DIGIT / 2 - i) * SCORE_DIGIT_SPACING), 0.0f, 0.0f);
+        scoreDigitTransform = glm::translate(glm::mat4(1.0f), positionOffset) * scoreDigitTransform;
+        numberObject[score % 10]->draw(this->nonTexturedShaderID, projection, glm::inverse(headPose), scoreDigitTransform);
+        score = score / 10;
+    }
 }
 
 void TowerDefender::renderScene(const glm::mat4 & projection, const glm::mat4 & headPose)
@@ -210,10 +272,10 @@ void TowerDefender::renderScene(const glm::mat4 & projection, const glm::mat4 & 
         if ((playerID == this->playerID) && gameDataInstance.playerData[playerID].arrowReadying) {
             glm::vec3 initialPosition = playerDominantHandTransform[3];
             glm::vec3 initialVelocity = (playerNonDominantHandTransform[3] - playerDominantHandTransform[3]) * ARROW_VELOCITY_SCALE;
-            glm::vec3 aimAssistCurrentDrawPosition = initialPosition;
+            glm::vec3 aimAssistCurrentDrawPosition = playerNonDominantHandTransform[3];
             float flyTimeInSeconds = 0.0f;
             while (aimAssistCurrentDrawPosition.y > 0.0f) {
-                flyTimeInSeconds += 0.1f;
+                flyTimeInSeconds += 0.05f;
                 glm::vec3 aimAssistNextDrawPosition = initialPosition + (initialVelocity * 
                     (flyTimeInSeconds)+ 0.5f * GRAVITY * glm::vec3(0.0f, std::pow(flyTimeInSeconds, 2), 0.0f));
                 this->lineObject->drawLine(aimAssistCurrentDrawPosition, aimAssistNextDrawPosition, 
@@ -230,6 +292,15 @@ void TowerDefender::renderScene(const glm::mat4 & projection, const glm::mat4 & 
         this->arrowObject->draw(this->nonTexturedShaderID, projection, glm::inverse(translatedHeadPose), arrowTransform);
         this->sphereObject->draw(this->nonTexturedShaderID, projection, glm::inverse(translatedHeadPose), arrowTransform);
     }
+
+    // Draw out the score
+    this->renderScore(projection, translatedHeadPose, gameDataInstance);
+
+    // Handle audio
+    this->handleAudioUpdate(gameDataInstance, this->previousGameData);
+
+    // Update the game data
+    this->previousGameData = gameDataInstance;
 }
 
 glm::mat4 TowerDefender::getHeadInformation() 

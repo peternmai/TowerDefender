@@ -2,9 +2,11 @@
 
 #include <chrono>
 #include <mutex>
+#include <array>
 
 #include "MinimalOculus.hpp"
 #include "GameClient.hpp"
+#include "AudioPlayer.hpp"
 #include "OBJObject.hpp"
 #include "Lines.hpp"
 #include "shader.hpp"
@@ -15,18 +17,30 @@
 #define ARROW_OBJECT_PATH       "../objects/arrow.obj"
 #define SPHERE_OBJECT_PATH      "../objects/sphere.obj"
 #define HELMET_OBJECT_PATH      "../objects/helmet.obj"
+#define SCORE_TEXT_OBJECT_PATH  "../objects/scoreText.obj"
+#define NUMBER_OBJECT_PATH      "../objects/numbers/"
 
-#define NONTEXTURED_GEOMETRY_VERTEX_SHADER_PATH "../shaders/coloredGeometry.vert"
+#define NONTEXTURED_GEOMETRY_VERTEX_SHADER_PATH   "../shaders/coloredGeometry.vert"
 #define NONTEXTURED_GEOMETRY_FRAGMENT_SHADER_PATH "../shaders/coloredGeometry.frag"
+
+#define CALM_BACKGROUND_AUDIO_PATH   "../audio/Voyage_through_Wood_and_Sea.wav"
+#define ARROW_FIRING_AUDIO_PATH      "../audio/arrow_firing.wav"
+#define ARROW_STRETCHING_AUDIO_PATH  "../audio/arrow_stretching.wav"
 
 #define HAND_SIZE             0.1
 #define HELMET_SIZE           0.4
+#define SCORE_TEXT_SIZE       40
+#define SCORE_DIGIT_SIZE      20
+#define SCORE_DIGIT_SPACING   14
 
 #define SYNC_RATE             200
 #define NANOSECONDS_IN_SECOND 1000000000
 
 #define GRAVITY               -9.81
 #define ARROW_VELOCITY_SCALE  50.0
+
+#define TOTAL_SINGLE_DIGIT    10
+#define TOTAL_SCORE_DIGIT     9
 
 static const float MAP_SIZE = 1000.0f;
 static const float USER_HEIGHT = 1.676f;
@@ -43,6 +57,8 @@ static const std::vector<glm::vec3> ARROW_STRING_LOCATION = {
 };
 
 static const glm::vec3 AIM_ASSIST_COLOR = { 1.0f, 0.65f, 0.0f };
+static const glm::vec3 SCORE_TEXT_LOCATION = { 0.0f, 100.0f, -200.0f };
+static const glm::vec3 SCORE_CENTER_LOCATION = { 0.0f, 75.0f, -200.0f };
 
 class TowerDefender : public RiftApp
 {
@@ -52,12 +68,18 @@ private:
 
     // Local copy of the server's game data
     rpcmsg::GameData gameData;
+    rpcmsg::GameData previousGameData;
     std::mutex gameDataLock;
     uint32_t playerID;
     uint32_t playerTower;
     bool sessionActive;
 
+    // Instance for audio play back
+    std::unique_ptr<AudioPlayer> audioPlayer;
+
     // Relating to objects to render
+    std::array<std::unique_ptr<OBJObject>, TOTAL_SINGLE_DIGIT> numberObject;
+    std::unique_ptr<OBJObject> scoreTextObject;
     std::unique_ptr<OBJObject> environmentObject;
     std::unique_ptr<OBJObject> bowObject;
     std::unique_ptr<OBJObject> arrowObject;
@@ -75,6 +97,9 @@ private:
     void registerPlayer();
     std::vector<glm::mat4> getHandInformation();
     glm::mat4 getHeadInformation();
+
+    void handleAudioUpdate(rpcmsg::GameData & currentGameData, rpcmsg::GameData & previousGameData);
+    void renderScore(const glm::mat4 & projection, const glm::mat4 & headPose, rpcmsg::GameData & currentGameData);
 
 protected:
     void initGl() override;

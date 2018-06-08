@@ -10,6 +10,7 @@
 #define NANOSECONDS_IN_SECOND  1000000000
 
 #define GRAVITY -9.81
+#define M_PI    3.14159265358979323846
 
 #define ARROW_VELOCITY_SCALE       50.0
 #define ARROW_RELOAD_ZONE_Z_OFFSET 0.30
@@ -19,6 +20,8 @@
 #define ARROW_DAMAGE               20
 
 #define CASTLE_CRASHER_HIT_RADIUS  1.50
+
+static const glm::vec3 ARROW_POSITION_OFFSET = glm::vec3{ -0.1f, 0.0f, -0.4f };
 
 class GameEngine
 {
@@ -38,6 +41,8 @@ private:
 
     glm::vec3 calculateProjectilePosition(const glm::vec3 & initVelocity,
         const glm::vec3 & initPosition, const uint64_t & launchTime);
+
+    glm::mat4 calculateFlyingArrowPose(const rpcmsg::ArrowData & arrowData);
 
     void updateService();
     void updateProcedure();

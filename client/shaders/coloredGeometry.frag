@@ -10,10 +10,10 @@ void main(void) {
     fragColor = vec4(vertColor, 1.0);
 
 	// Information about directional light
-	vec3 lightDirection = normalize(vec3(1.0f, -1.0f, 0.2f));
+	vec3 lightDirection = normalize(vec3(1.0f, -0.5f, -0.5f));
 	vec3 lightColor = vec3(1.0f);
 	float ambientCoefficent = 0.05;
-	float diffuseCoefficient = 2.0;
+	float diffuseCoefficient = 2.5;
 	float specularCoefficient = 0.1;
 	float shininessConstant = 128;
 
