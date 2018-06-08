@@ -83,9 +83,12 @@ namespace rpcmsg {
         std::array<rpcmsg::HandData, 2> handData;
         rpcmsg::ArrowData               arrowData;
         uint32_t                        dominantHand;
+        uint32_t                        arrowFiringAudioCue;
+        uint32_t                        arrowStretchingAudioCue;
         bool                            arrowReleased;
         bool                            arrowReadying;
-        MSGPACK_DEFINE_ARRAY(headData, handData, arrowData, dominantHand, arrowReleased, arrowReadying);
+        MSGPACK_DEFINE_ARRAY(headData, handData, arrowData, dominantHand, 
+            arrowFiringAudioCue, arrowStretchingAudioCue, arrowReleased, arrowReadying);
     };
 
     // RPC message that holds all data relating to a single castle crasher
