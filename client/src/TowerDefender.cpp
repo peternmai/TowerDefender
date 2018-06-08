@@ -37,6 +37,10 @@ void TowerDefender::initGl() {
 
     // Load in shader program
     this->nonTexturedShaderID = LoadShaders(NONTEXTURED_GEOMETRY_VERTEX_SHADER_PATH, NONTEXTURED_GEOMETRY_FRAGMENT_SHADER_PATH);
+    this->texturedShaderID = LoadShaders(TEXTURED_GEOMETRY_VERTEX_SHADER_PATH, TEXTURED_GEOMETRY_FRAGMENT_SHADER_PATH);
+
+    // Load in object to draw lines
+    this->lineObject = std::make_unique<Lines>();
 
     // Load in the environment
     this->environmentObject = std::make_unique<OBJObject>(
@@ -52,13 +56,13 @@ void TowerDefender::initGl() {
     this->helmetObject = std::make_unique<OBJObject>(std::string(HELMET_OBJECT_PATH), (float) HELMET_SIZE);
     this->scoreTextObject = std::make_unique<OBJObject>(std::string(SCORE_TEXT_OBJECT_PATH), (float) SCORE_TEXT_SIZE);
 
+    // Load in images to render
+    this->playerNotReadyImageObject = std::make_unique<Image>(std::string(PLAYER_NOT_READY_TEXTURE_PATH));
+
     // Load in each of the number
     for (int i = 0; i < TOTAL_SINGLE_DIGIT; i++)
         this->numberObject[i] = std::make_unique<OBJObject>(std::string(
-            NUMBER_OBJECT_PATH) + std::to_string(i) + ".obj", (float) SCORE_DIGIT_SIZE);
-
-    // Load in object to draw lines
-    this->lineObject = std::make_unique<Lines>();
+            NUMBER_OBJECT_PATH) + std::to_string(i) + ".obj", (float)SCORE_DIGIT_SIZE);
 
     // Load in all the music files
     this->audioPlayer->loadAudioFile(CALM_BACKGROUND_AUDIO_PATH);
@@ -166,12 +170,13 @@ void TowerDefender::handleAudioUpdate(rpcmsg::GameData & currentGameData,
      rpcmsg::GameData & previousGameData)
 {
     // See if we should change background audio
+    /**
     if (currentGameData.gameState.gameStarted != previousGameData.gameState.gameStarted) {
         if (currentGameData.gameState.gameStarted == true)
             this->audioPlayer->play(CALM_BACKGROUND_AUDIO_PATH, true);
         else
             this->audioPlayer->play(CALM_BACKGROUND_AUDIO_PATH, true);
-    }
+    }*/
 
     // See if we should play audio for user shooting / stretching arrow
     if (currentGameData.playerData.find(this->playerID) != currentGameData.playerData.end()) {
@@ -291,6 +296,16 @@ void TowerDefender::renderScene(const glm::mat4 & projection, const glm::mat4 & 
         glm::mat4 arrowTransform = rpcmsg::rpcToGLM(flyingArrow->arrowPose);
         this->arrowObject->draw(this->nonTexturedShaderID, projection, glm::inverse(translatedHeadPose), arrowTransform);
         this->sphereObject->draw(this->nonTexturedShaderID, projection, glm::inverse(translatedHeadPose), arrowTransform);
+    }
+
+    // Draw out the notification menu
+    for (int i = 0; i < NOTIFICATION_SCREEN_LOCATION.size(); i++) {
+        if (((i == 0) ? gameDataInstance.gameState.leftTowerReady : gameDataInstance.gameState.rightTowerReady) == false) {
+            glm::mat4 screenTransform = glm::scale(glm::mat4(1.0f), glm::vec3((float)NOTIFICATION_SIZE));
+            screenTransform = glm::rotate(glm::mat4(1.0f), glm::radians((i == 0) ? 45.0f : -45.0f), glm::vec3(0.0f, 1.0f, 0.0f)) * screenTransform;
+            screenTransform = glm::translate(glm::mat4(1.0f), NOTIFICATION_SCREEN_LOCATION[i]) * screenTransform;
+            this->playerNotReadyImageObject->draw(this->texturedShaderID, projection, glm::inverse(translatedHeadPose), screenTransform);
+        }
     }
 
     // Draw out the score

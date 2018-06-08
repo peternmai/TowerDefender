@@ -22,6 +22,7 @@
     <ClCompile Include="..\..\shared\src\rpcMessages.cpp" />
     <ClCompile Include="..\src\AudioPlayer.cpp" />
     <ClCompile Include="..\src\GameClient.cpp" />
+    <ClCompile Include="..\src\Image.cpp" />
     <ClCompile Include="..\src\Lines.cpp" />
     <ClCompile Include="..\src\OBJObject.cpp" />
     <ClCompile Include="..\src\shader.cpp" />
@@ -30,6 +31,8 @@
   <ItemGroup>
     <None Include="..\shaders\coloredGeometry.frag" />
     <None Include="..\shaders\coloredGeometry.vert" />
+    <None Include="..\shaders\texturedGeometry.frag" />
+    <None Include="..\shaders\texturedGeometry.vert" />
     <None Include="..\shaders\line.frag" />
     <None Include="..\shaders\line.vert" />
     <None Include="packages.config" />
@@ -38,11 +41,12 @@
     <ClInclude Include="..\..\shared\include\rpcMessages.hpp" />
     <ClInclude Include="..\include\AudioPlayer.hpp" />
     <ClInclude Include="..\include\GameClient.hpp" />
+    <ClInclude Include="..\include\Image.hpp" />
+    <ClInclude Include="..\include\Lines.hpp" />
     <ClInclude Include="..\include\MinimalOculus.hpp" />
     <ClInclude Include="..\include\OBJObject.hpp" />
     <ClInclude Include="..\include\shader.hpp" />
     <ClInclude Include="..\include\TowerDefender.hpp" />
-    <ClInclude Include="..\src\Lines.hpp" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>15.0</VCProjectVersion>

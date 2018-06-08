@@ -18,26 +18,17 @@ GameEngine::GameEngine()
     // Determine how long program should sleep between update
     this->sleepDuration = std::chrono::nanoseconds(NANOSECONDS_IN_SECOND / REFRESH_RATE);
 
+    // Initialize game data
+    this->gameData.gameState.castleHealth = CASTLE_MAX_HEALTH;
+    this->gameData.gameState.gameStarted = false;
+    this->gameData.gameState.leftTowerReady = false;
+    this->gameData.gameState.rightTowerReady = false;
+
     // Launch new thread to update program with the given refresh rate
     this->gameEngineServiceStatus = true;
     this->lastUpdateTime = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::high_resolution_clock::now().time_since_epoch());
     std::thread gameEngineService(&GameEngine::updateService, this);
     gameEngineService.detach();
-
-    std::thread tempThread([&] {
-        std::random_device randomDevice;
-        std::mt19937_64 randomGenerator(randomDevice());
-        std::uniform_int_distribution<unsigned long> distribution;
-        while (this->gameEngineServiceStatus) {
-            uint32_t number = (uint32_t)distribution(randomGenerator);
-            this->gameDataLock.lock();
-            this->gameData.gameState.gameScore = number;
-            this->gameDataLock.unlock();
-
-            std::this_thread::sleep_for(std::chrono::seconds(1));
-        }
-    });
-    tempThread.detach();
 
     std::cout << "\tSuccessfully started game engine service" << std::endl;
 }
@@ -85,6 +76,8 @@ void GameEngine::updateProcedure()
     updatedGameData = this->updatePlayerData(updatedGameData);
     updatedGameData = this->updateArrowData(updatedGameData);
     updatedGameData = this->updateCastleCrasher(updatedGameData);
+    updatedGameData = this->updateGameState(updatedGameData);
+    updatedGameData = this->updateEasterEgg(updatedGameData);
 
     // Assign the game state
     this->gameDataLock.lock();
@@ -334,6 +327,64 @@ rpcmsg::GameData GameEngine::updateCastleCrasher(const rpcmsg::GameData & previo
         }
     }
 
+    return updatedGameData;
+}
+
+rpcmsg::GameData GameEngine::updateGameState(const rpcmsg::GameData & previousGameData)
+{
+    rpcmsg::GameData updatedGameData = previousGameData;
+
+    // If game state haven't started, check to see if both users are ready
+    if(previousGameData.gameState.gameStarted == false) {
+        for (auto arrow = updatedGameData.gameState.flyingArrows.begin();
+            arrow != updatedGameData.gameState.flyingArrows.end(); arrow++) {
+
+            glm::vec3 arrowLocation = rpcmsg::rpcToGLM(arrow->arrowPose)[3];
+            if (glm::length(arrowLocation - NOTIFICATION_SCREEN_LOCATION[0]) < READY_UP_RADIUS)
+                updatedGameData.gameState.leftTowerReady = true;
+            if (glm::length(arrowLocation - NOTIFICATION_SCREEN_LOCATION[1]) < READY_UP_RADIUS)
+                updatedGameData.gameState.rightTowerReady = true;
+
+            if (updatedGameData.gameState.leftTowerReady && updatedGameData.gameState.rightTowerReady) {
+                updatedGameData.gameState.gameStarted = true;
+                updatedGameData.gameState.gameScore = 0;
+                updatedGameData.gameState.castleHealth = CASTLE_MAX_HEALTH;
+            }
+        }
+    }
+
+    // Else, check if game has ended
+    else {
+        if (previousGameData.gameState.castleHealth == 0) {
+            updatedGameData.gameState.gameStarted = false;
+            updatedGameData.gameState.leftTowerReady = false;
+            updatedGameData.gameState.rightTowerReady = false;
+        }
+    }
+
+    return updatedGameData;
+}
+
+rpcmsg::GameData GameEngine::updateEasterEgg(const rpcmsg::GameData & previousGameData)
+{
+    rpcmsg::GameData updatedGameData = previousGameData;
+
+    // Display random score if game has never started
+    uint32_t currentTime = (uint32_t)std::chrono::duration_cast<std::chrono::seconds>(
+        std::chrono::high_resolution_clock::now().time_since_epoch()).count();
+    if (currentTime != this->easterEggLastUpdateTimer) {
+        if (!previousGameData.gameState.gameStarted && (previousGameData.gameState.castleHealth != 0)) {
+            std::random_device randomDevice;
+            std::mt19937_64 randomGenerator(randomDevice());
+            std::uniform_int_distribution<unsigned long> distribution;
+            uint32_t randomNumber = (uint32_t)distribution(randomGenerator);
+            while (randomNumber == previousGameData.gameState.gameScore)
+                randomNumber = (uint32_t)distribution(randomGenerator);
+            updatedGameData.gameState.gameScore = randomNumber;
+        }
+    }
+
+    this->easterEggLastUpdateTimer = currentTime;
     return updatedGameData;
 }
 

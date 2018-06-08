@@ -15,13 +15,20 @@
 #define ARROW_VELOCITY_SCALE       50.0
 #define ARROW_RELOAD_ZONE_Z_OFFSET 0.30
 #define ARROW_RELOAD_ZONE_RADIUS   0.30
-#define ARROW_READY_ZONE_Z_OFFSET  0.30
-#define ARROW_READY_ZONE_RADIUS    0.30
+#define ARROW_READY_ZONE_Z_OFFSET  0.25
+#define ARROW_READY_ZONE_RADIUS    0.25
 #define ARROW_DAMAGE               20
+#define READY_UP_RADIUS            0.5
 
+#define CASTLE_MAX_HEALTH  10000
 #define CASTLE_CRASHER_HIT_RADIUS  1.50
 
 static const glm::vec3 ARROW_POSITION_OFFSET = glm::vec3{ -0.1f, 0.0f, -0.4f };
+
+static const std::vector<glm::vec3> NOTIFICATION_SCREEN_LOCATION = {
+    glm::vec3(-20.0f, 16.5f, -5.8),
+    glm::vec3(20.0f, 16.5f, -5.8),
+};
 
 class GameEngine
 {
@@ -34,6 +41,7 @@ private:
     std::chrono::nanoseconds lastUpdateTime;
     std::chrono::time_point<std::chrono::system_clock> start;
     std::chrono::nanoseconds sleepDuration;
+    uint32_t easterEggLastUpdateTimer;
     bool gameEngineServiceStatus;
 
     glm::vec3 calculateProjectileVelocity(
@@ -49,6 +57,8 @@ private:
     rpcmsg::GameData updatePlayerData(const rpcmsg::GameData & previousGameData);
     rpcmsg::GameData updateArrowData(const rpcmsg::GameData & previousGameData);
     rpcmsg::GameData updateCastleCrasher(const rpcmsg::GameData & previousGameData);
+    rpcmsg::GameData updateGameState(const rpcmsg::GameData & previousGameData);
+    rpcmsg::GameData updateEasterEgg(const rpcmsg::GameData & previousGameData);
 
 
 public:

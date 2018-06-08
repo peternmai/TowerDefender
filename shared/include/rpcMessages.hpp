@@ -104,9 +104,12 @@ namespace rpcmsg {
         bool     gameStarted;
         uint32_t gameScore;
         uint32_t castleHealth;
+        bool     leftTowerReady;
+        bool     rightTowerReady;
         std::list<rpcmsg::CastleCrasherData> castleCrasherData;
         std::list<rpcmsg::ArrowData> flyingArrows;
-        MSGPACK_DEFINE_ARRAY(gameStarted, gameScore, castleHealth, castleCrasherData, flyingArrows);
+        MSGPACK_DEFINE_ARRAY(gameStarted, gameScore, castleHealth, leftTowerReady, 
+            rightTowerReady, castleCrasherData, flyingArrows);
     };
 
     // RPC message that holds a copy of the entire game state

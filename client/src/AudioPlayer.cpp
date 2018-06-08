@@ -79,7 +79,7 @@ bool AudioPlayer::loadAudioFile(const std::string & filename)
 
     // Attempt to load in the audio file
     // TODO: Ability to load more than just WAV files
-    std::cout << "Attempting to load in \"" << filename << "\"... ";
+    std::cout << "Loading in \"" << filename << "\"... ";
     AudioPlayer::AudioFileData audioFileData;
     try {
         audioFileData = this->loadWAVFile(filename);

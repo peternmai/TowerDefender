@@ -42,6 +42,9 @@
     <ClCompile Include="..\src\AudioPlayer.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="..\src\Image.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />
@@ -56,6 +59,12 @@
     </None>
     <None Include="..\shaders\coloredGeometry.vert">
       <Filter>Vertex Shaders</Filter>
+    </None>
+    <None Include="..\shaders\texturedGeometry.vert">
+      <Filter>Vertex Shaders</Filter>
+    </None>
+    <None Include="..\shaders\texturedGeometry.frag">
+      <Filter>Fragment Shaders</Filter>
     </None>
   </ItemGroup>
   <ItemGroup>
@@ -77,10 +86,13 @@
     <ClInclude Include="..\include\shader.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\src\Lines.hpp">
+    <ClInclude Include="..\include\AudioPlayer.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\include\AudioPlayer.hpp">
+    <ClInclude Include="..\include\Image.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\include\Lines.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
