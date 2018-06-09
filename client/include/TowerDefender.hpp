@@ -66,8 +66,8 @@ static const std::vector<glm::vec3> NOTIFICATION_SCREEN_LOCATION = {
 };
 
 static const std::vector<glm::vec3> ARROW_STRING_LOCATION = {
-    glm::vec3{ 0.03f,  0.4f, 0.1f },
-    glm::vec3{ 0.03f, -0.4f, 0.1f }
+    glm::vec3{ 0.0f,  0.4f, 0.1f },
+    glm::vec3{ 0.0f, -0.4f, 0.1f }
 };
 
 static const glm::vec3 CASTLE_HEALTH_BAR_START_LOCATION = glm::vec3(10.0f, 15.0f, 20.0f);

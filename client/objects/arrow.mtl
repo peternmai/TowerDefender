@@ -1,8 +1,8 @@
-# Blender MTL File: 'hawkeye.blend'
+# Blender MTL File: 'None'
 # Material Count: 3
 
-newmtl Material.001
-Ns 96.078431
+newmtl Material.017
+Ns 94.117647
 Ka 1.000000 1.000000 1.000000
 Kd 0.009773 0.009773 0.009773
 Ks 0.431034 0.431034 0.431034
@@ -11,18 +11,18 @@ Ni 1.000000
 d 1.000000
 illum 2
 
-newmtl Material.002
-Ns 96.078431
+newmtl Material.018
+Ns 94.117647
 Ka 1.000000 1.000000 1.000000
 Kd 0.207916 0.207916 0.207916
 Ks 0.000000 0.000000 0.000000
 Ke 0.000000 0.000000 0.000000
 Ni 1.000000
 d 1.000000
-illum 1
+illum 2
 
-newmtl Material.003
-Ns 96.078431
+newmtl Material.019
+Ns 94.117647
 Ka 1.000000 1.000000 1.000000
 Kd 0.000000 0.455385 0.000000
 Ks 0.500000 0.500000 0.500000

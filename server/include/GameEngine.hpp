@@ -22,7 +22,7 @@
 
 #define CASTLE_CRASHER_HIT_RADIUS  1.50
 
-static const glm::vec3 ARROW_POSITION_OFFSET = glm::vec3{ -0.1f, 0.0f, -0.4f };
+static const glm::vec3 ARROW_POSITION_OFFSET = glm::vec3{ -0.0f, 0.0f, -0.4f };
 
 static const std::vector<glm::vec3> NOTIFICATION_SCREEN_LOCATION = {
     glm::vec3(-20.0f, 16.5f, -5.8),

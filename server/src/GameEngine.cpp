@@ -120,7 +120,7 @@ glm::mat4 GameEngine::calculateFlyingArrowPose(const rpcmsg::ArrowData & arrowDa
 
     glm::vec3 arrowDirection = (nextArrowPosition - arrowPosition);
     float arrowYZ_Angle = ((float)glm::asin(arrowDirection.y / glm::length(arrowDirection)) + (float)M_PI) * -1.0f;
-    float arrowXZ_Angle = ((float)glm::atan(arrowDirection.z / arrowDirection.x) + (float)(1.5 * M_PI)) * -1.0f + glm::radians(15.0f);
+    float arrowXZ_Angle = ((float)glm::atan(arrowDirection.z / arrowDirection.x) + (float)(1.5 * M_PI)) * -1.0f;
     if (arrowDirection.x < 0.0f)
         arrowXZ_Angle += (float)M_PI;
     glm::mat4 arrowPose = glm::translate(glm::mat4(1.0f), ARROW_POSITION_OFFSET);
@@ -198,7 +198,7 @@ rpcmsg::GameData GameEngine::updatePlayerData(const rpcmsg::GameData & previousG
                 // Update arrow pose
                 glm::vec3 arrowDirection = (nonDominantHandPosition - dominantHandPosition);
                 float arrowYZ_Angle = ((float)glm::asin(arrowDirection.y / glm::length(arrowDirection)) + (float)M_PI) * -1.0f;
-                float arrowXZ_Angle = ((float)glm::atan(arrowDirection.z / arrowDirection.x) + (float)(1.5 * M_PI)) * -1.0f + glm::radians(15.0f);
+                float arrowXZ_Angle = ((float)glm::atan(arrowDirection.z / arrowDirection.x) + (float)(1.5 * M_PI)) * -1.0f;
                 if (arrowDirection.x < 0.0f)
                     arrowXZ_Angle += (float)M_PI;
                 glm::mat4 arrowPose = glm::translate(glm::mat4(1.0f), ARROW_POSITION_OFFSET);
