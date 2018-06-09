@@ -68,6 +68,7 @@ void TowerDefender::initGl() {
     this->audioPlayer->loadAudioFile(CALM_BACKGROUND_AUDIO_PATH);
     this->audioPlayer->loadAudioFile(ARROW_FIRING_AUDIO_PATH);
     this->audioPlayer->loadAudioFile(ARROW_STRETCHING_AUDIO_PATH);
+    this->audioPlayer->loadAudioFile(CONFIRMATION_AUDIO_PATH);
 
     // Start playing background music
     this->audioPlayer->play(CALM_BACKGROUND_AUDIO_PATH, true);
@@ -189,6 +190,12 @@ void TowerDefender::handleAudioUpdate(rpcmsg::GameData & currentGameData,
                 this->audioPlayer->play(ARROW_STRETCHING_AUDIO_PATH);
         }
     }
+
+    // See if we should play confirmation audio (player hit ready)
+    if (!previousGameData.gameState.leftTowerReady && currentGameData.gameState.leftTowerReady)
+        this->audioPlayer->play(CONFIRMATION_AUDIO_PATH);
+    if (!previousGameData.gameState.rightTowerReady && currentGameData.gameState.rightTowerReady)
+        this->audioPlayer->play(CONFIRMATION_AUDIO_PATH);
 
 }
 
