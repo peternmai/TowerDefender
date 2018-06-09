@@ -1,10 +1,13 @@
 #include "TowerDefender.hpp"
 
 #include <string>
+#include <sstream>
 #include <iostream>
 #include <memory>
 #include <vector>
 #include <thread>
+
+const bool SHOW_DEBUG_FPS = true;
 
 TowerDefender::TowerDefender(std::string ipAddress, int portNumber) 
 {
@@ -49,6 +52,22 @@ void TowerDefender::initGl() {
     this->environmentTransforms = glm::rotate(glm::mat4(1.0f), glm::radians(180.0f), glm::vec3(0.0f, 1.0f, 0.0f)) * this->environmentTransforms;
     this->environmentTransforms = glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, MAP_TRANSLATE_UP_OFFSET, 0.0f)) * this->environmentTransforms;
 
+    // Load in castle crashers to render
+    for (int i = 0; i < DIFFERENT_CASTLE_CRASHER; i++) {
+        std::stringstream objectPath;
+        objectPath << std::string(CASTLE_CRASHER_PATH) << std::setw(2) << std::setfill('0') << i << "/";
+        this->castleCrasherObject[i].bodyObject = std::make_unique<OBJObject>(
+            objectPath.str() + std::string(CASTLE_CRASHER_BODY_NAME), (float)CASTLE_CRASHER_BODY_SIZE[i]);
+        this->castleCrasherObject[i].leftArmObject = std::make_unique<OBJObject>(
+            objectPath.str() + std::string(CASTLE_CRASHER_LEFT_ARM_NAME), (float)CASTLE_CRASHER_LARM_SIZE[i]);
+        this->castleCrasherObject[i].rightArmObject = std::make_unique<OBJObject>(
+            objectPath.str() + std::string(CASTLE_CRASHER_RIGHT_ARM_NAME), (float)CASTLE_CRASHER_RARM_SIZE[i]);
+        this->castleCrasherObject[i].leftLegObject = std::make_unique<OBJObject>(
+            objectPath.str() + std::string(CASTLE_CRASHER_LEFT_LEG_NAME), (float)CASTLE_CRASHER_LEG_SIZE[i]);
+        this->castleCrasherObject[i].rightLegObject = std::make_unique<OBJObject>(
+            objectPath.str() + std::string(CASTLE_CRASHER_RIGHT_LEG_NAME), (float)CASTLE_CRASHER_LEG_SIZE[i]);
+    }
+
     // Load in objects to render
     this->bowObject = std::make_unique<OBJObject>(std::string(BOW_OBJECT_PATH), 1.0f);
     this->arrowObject = std::make_unique<OBJObject>(std::string(ARROW_OBJECT_PATH), 1.0f);
@@ -74,7 +93,7 @@ void TowerDefender::initGl() {
     this->audioPlayer->play(CALM_BACKGROUND_AUDIO_PATH, true);
 
     // Get a copy of the current game state
-    this->gameData = this->gameClient->syncGameState();
+    this->incomingGameData = this->gameClient->syncGameState();
 }
 
 void TowerDefender::update() 
@@ -88,6 +107,27 @@ void TowerDefender::update()
         if (inputState.Buttons & ovrButton::ovrButton_A)
             this->playerTower = 1;
     }
+
+    // Handle audio
+    this->incomingGameDataLock.lock();
+    this->currentLocalGameData = this->incomingGameData;
+    this->incomingGameDataLock.unlock();
+    this->handleAudioUpdate(this->currentLocalGameData, this->previousLocalGameData);
+
+    // Update the game data
+    this->previousLocalGameData = this->currentLocalGameData;
+
+    // Store debug information
+    auto currentTime = std::chrono::duration_cast<std::chrono::nanoseconds>(
+        std::chrono::high_resolution_clock::now().time_since_epoch()).count();
+    double fps = (double)NANOSECONDS_IN_SECOND / (double)(currentTime - lastRenderedTime);
+    averageFPS += fps / 90;
+    averageFpsQueue.push(fps);
+    if (averageFpsQueue.size() > 90) {
+        averageFPS -= averageFpsQueue.front() / 90;
+        averageFpsQueue.pop();
+    }
+    lastRenderedTime = currentTime;
 }
 
 // Sync with server. This should be its own thread
@@ -104,9 +144,9 @@ void TowerDefender::syncWithServer()
         if (this->playerID != 0) {
             bool successful = this->gameClient->updatePlayerData(this->getOculusPlayerState());
             auto updatedGameData = this->gameClient->syncGameState();
-            this->gameDataLock.lock();
-            this->gameData = updatedGameData;
-            this->gameDataLock.unlock();
+            this->incomingGameDataLock.lock();
+            this->incomingGameData = updatedGameData;
+            this->incomingGameDataLock.unlock();
             if (successful == false)
                 this->playerID = 0;
         }
@@ -200,18 +240,173 @@ void TowerDefender::handleAudioUpdate(rpcmsg::GameData & currentGameData,
 }
 
 void TowerDefender::renderScore(const glm::mat4 & projection,
-    const glm::mat4 & headPose, rpcmsg::GameData & currentGameData)
+    const glm::mat4 & headPose, rpcmsg::GameData & gameDataInstance)
 {
     glm::mat4 scoreTextTransform = glm::translate(glm::mat4(1.0f), SCORE_TEXT_LOCATION);
     this->scoreTextObject->draw(this->nonTexturedShaderID, projection, glm::inverse(headPose), scoreTextTransform);
 
-    uint32_t score = currentGameData.gameState.gameScore;
+    uint32_t score = (SHOW_DEBUG_FPS) ? (uint32_t) this->averageFPS : gameDataInstance.gameState.gameScore;
     for (int i = 0; i < TOTAL_SCORE_DIGIT; i++) {
         glm::mat4 scoreDigitTransform = glm::translate(glm::mat4(1.0f), SCORE_CENTER_LOCATION);
         glm::vec3 positionOffset = glm::vec3((float)((TOTAL_SCORE_DIGIT / 2 - i) * SCORE_DIGIT_SPACING), 0.0f, 0.0f);
         scoreDigitTransform = glm::translate(glm::mat4(1.0f), positionOffset) * scoreDigitTransform;
         numberObject[score % 10]->draw(this->nonTexturedShaderID, projection, glm::inverse(headPose), scoreDigitTransform);
         score = score / 10;
+    }
+}
+
+void TowerDefender::renderPlayers(const glm::mat4 & projection, const glm::mat4 & headPose, rpcmsg::GameData & gameDataInstance)
+{
+    // Draw out the user
+    for (auto player = gameDataInstance.playerData.begin(); player != gameDataInstance.playerData.end(); player++) {
+
+        uint32_t playerID = player->first;
+        uint32_t playerDominantHand = gameDataInstance.playerData[playerID].dominantHand;
+        uint32_t playerNonDominantHand = (playerDominantHand == LEFT_HAND) ? RIGHT_HAND : LEFT_HAND;
+
+        glm::mat4 playerDominantHandTransform = rpcmsg::rpcToGLM(gameDataInstance.playerData[playerID].handData[playerDominantHand].handPose);
+        glm::mat4 playerNonDominantHandTransform = rpcmsg::rpcToGLM(gameDataInstance.playerData[playerID].handData[playerNonDominantHand].handPose);
+
+        // Use Oculus's hand data if rendering for current user (smoother)
+        /**
+        if (playerID == this->playerID) {
+        std::vector<glm::mat4> systemHandInfo = this->getHandInformation();
+        playerDominantHandTransform = systemHandInfo[playerDominantHand];
+        playerNonDominantHandTransform = systemHandInfo[playerNonDominantHand];
+        }*/
+
+        glm::mat4 playerHeadPose = rpcmsg::rpcToGLM(gameDataInstance.playerData[playerID].headData.headPose);
+        glm::mat4 bowTransform = glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.0f, 0.1f));
+        bowTransform = playerNonDominantHandTransform * bowTransform;
+        glm::mat4 arrowTransform = rpcmsg::rpcToGLM(gameDataInstance.playerData[playerID].arrowData.arrowPose);
+
+        glm::mat4 bowStringTopTransform = bowTransform * glm::translate(glm::mat4(1.0f), ARROW_STRING_LOCATION[0]);
+        glm::mat4 bowStringDownTransform = bowTransform * glm::translate(glm::mat4(1.0f), ARROW_STRING_LOCATION[1]);
+
+        // Draw out player head
+        if (playerID != this->playerID)
+            this->helmetObject->draw(this->nonTexturedShaderID, projection, glm::inverse(headPose), playerHeadPose);
+
+        // Draw out player's bow and arrow
+        this->bowObject->draw(this->nonTexturedShaderID, projection, glm::inverse(headPose), bowTransform);
+        this->arrowObject->draw(this->nonTexturedShaderID, projection, glm::inverse(headPose), arrowTransform);
+        this->sphereObject->draw(this->nonTexturedShaderID, projection, glm::inverse(headPose), arrowTransform);
+
+        // Draw out player's hands
+        this->sphereObject->draw(this->nonTexturedShaderID, projection, glm::inverse(headPose), playerDominantHandTransform);
+        this->sphereObject->draw(this->nonTexturedShaderID, projection, glm::inverse(headPose), playerNonDominantHandTransform);
+
+        // Draw out the string of the arrow
+        if (gameDataInstance.playerData[playerID].arrowReadying) {
+            this->lineObject->drawLine(bowStringTopTransform[3], playerDominantHandTransform[3],
+                glm::vec3(0.0f), projection, glm::inverse(headPose));
+            this->lineObject->drawLine(bowStringDownTransform[3], playerDominantHandTransform[3],
+                glm::vec3(0.0f), projection, glm::inverse(headPose));
+        }
+        else
+            this->lineObject->drawLine(bowStringTopTransform[3], bowStringDownTransform[3],
+                glm::vec3(0.0f), projection, glm::inverse(headPose));
+
+        // Draw out aim assist
+        if ((playerID == this->playerID) && gameDataInstance.playerData[playerID].arrowReadying) {
+            glm::vec3 initialPosition = playerDominantHandTransform[3];
+            glm::vec3 initialVelocity = (playerNonDominantHandTransform[3] - playerDominantHandTransform[3]) * ARROW_VELOCITY_SCALE;
+            glm::vec3 aimAssistCurrentDrawPosition = playerNonDominantHandTransform[3];
+            float flyTimeInSeconds = 0.0f;
+            while (aimAssistCurrentDrawPosition.y > 0.0f) {
+                flyTimeInSeconds += 0.05f;
+                glm::vec3 aimAssistNextDrawPosition = initialPosition + (initialVelocity *
+                    (flyTimeInSeconds)+0.5f * GRAVITY * glm::vec3(0.0f, std::pow(flyTimeInSeconds, 2), 0.0f));
+                this->lineObject->drawLine(aimAssistCurrentDrawPosition, aimAssistNextDrawPosition,
+                    AIM_ASSIST_COLOR, projection, glm::inverse(headPose));
+                aimAssistCurrentDrawPosition = aimAssistNextDrawPosition;
+            }
+        }
+    }
+}
+
+void TowerDefender::renderFlyingArrows(const glm::mat4 & projection, const glm::mat4 & headPose, rpcmsg::GameData & gameDataInstance)
+{
+    // Draw out all arrows that are currently flying
+    for (auto flyingArrow = gameDataInstance.gameState.flyingArrows.begin();
+        flyingArrow != gameDataInstance.gameState.flyingArrows.end(); flyingArrow++) {
+        glm::mat4 arrowTransform = rpcmsg::rpcToGLM(flyingArrow->arrowPose);
+        this->arrowObject->draw(this->nonTexturedShaderID, projection, glm::inverse(headPose), arrowTransform);
+        this->sphereObject->draw(this->nonTexturedShaderID, projection, glm::inverse(headPose), arrowTransform);
+    }
+}
+
+void TowerDefender::renderCastleCrashers(const glm::mat4 & projection, const glm::mat4 & headPose, rpcmsg::GameData & gameDataInstance)
+{
+    for (int j = 0; j < 75; j++) {
+
+        // Calculate the rotation of the legs/arms
+        float rotationAngle = (keke <= 180.0f) ? keke : (360.0f - keke);
+        float leftArmRotation = rotationAngle / 1.5f - 60.0f;
+        float rightArmRotation = rotationAngle / -1.5f - 60.0f;
+        float leftLegRotation = rotationAngle / 1.5f - 60.0f;
+        float rightLegRotation = rotationAngle / -1.5f + 60.0f;
+
+        // Calculate transforms of castle crasher and draw them out
+        int castleCrasherID = 0;
+        glm::mat4 leftArmTransform = glm::translate(glm::mat4(1.0f), CASTLE_CRASHER_LEFT_ARM_PRE_ROTATION[castleCrasherID]);
+        leftArmTransform = glm::rotate(glm::mat4(1.0f), glm::radians(leftArmRotation), glm::vec3(1.0f, 0.0f, 0.0f)) * leftArmTransform;
+        leftArmTransform = glm::translate(glm::mat4(1.0f), CASTLE_CRASHER_LEFT_ARM_OFFSET[castleCrasherID]) * leftArmTransform;
+        glm::mat4 rightArmTransform = glm::translate(glm::mat4(1.0f), CASTLE_CRASHER_RIGHT_ARM_PRE_ROTATION[castleCrasherID]);
+        rightArmTransform = glm::rotate(glm::mat4(1.0f), glm::radians(rightArmRotation), glm::vec3(1.0f, 0.0f, 0.0f)) * rightArmTransform;
+        rightArmTransform = glm::translate(glm::mat4(1.0f), CASTLE_CRASHER_RIGHT_ARM_OFFSET[castleCrasherID]) * rightArmTransform;
+        glm::mat4 leftLegTransform = glm::translate(glm::mat4(1.0f), CASTLE_CRASHER_LEFT_LEG_PRE_ROTATION[castleCrasherID]);
+        leftLegTransform = glm::rotate(glm::mat4(1.0f), glm::radians(leftLegRotation), glm::vec3(1.0f, 0.0f, 0.0f)) * leftLegTransform;
+        leftLegTransform = glm::translate(glm::mat4(1.0f), CASTLE_CRASHER_LEFT_LEG_OFFSET[castleCrasherID]) * leftLegTransform;
+        glm::mat4 rightLegTransform = glm::translate(glm::mat4(1.0f), CASTLE_CRASHER_RIGHT_LEG_PRE_ROTATION[castleCrasherID]);
+        rightLegTransform = glm::rotate(glm::mat4(1.0f), glm::radians(rightLegRotation), glm::vec3(1.0f, 0.0f, 0.0f)) * rightLegTransform;
+        rightLegTransform = glm::translate(glm::mat4(1.0f), CASTLE_CRASHER_RIGHT_LEG_OFFSET[castleCrasherID]) * rightLegTransform;
+
+
+        glm::mat4 castleCrasherLocation = glm::translate(glm::mat4(1.0f), glm::vec3(-15.0f, 17.0f, -3.0f));
+
+        // Draw out the castle crasher
+        this->castleCrasherObject[castleCrasherID].bodyObject->draw(this->nonTexturedShaderID, projection,
+            glm::inverse(headPose), castleCrasherLocation);
+        this->castleCrasherObject[castleCrasherID].leftArmObject->draw(this->nonTexturedShaderID, projection,
+            glm::inverse(headPose), castleCrasherLocation * leftArmTransform);
+        this->castleCrasherObject[castleCrasherID].rightArmObject->draw(this->nonTexturedShaderID, projection,
+            glm::inverse(headPose), castleCrasherLocation * rightArmTransform);
+        this->castleCrasherObject[castleCrasherID].leftLegObject->draw(this->nonTexturedShaderID, projection,
+            glm::inverse(headPose), castleCrasherLocation * leftLegTransform);
+        this->castleCrasherObject[castleCrasherID].rightLegObject->draw(this->nonTexturedShaderID, projection,
+            glm::inverse(headPose), castleCrasherLocation * rightLegTransform);
+    }
+
+    keke += 1.0f;
+    if (keke > 360.0f)
+        keke = 0.0f;
+
+}
+void TowerDefender::renderCastleHealth(const glm::mat4 & projection, const glm::mat4 & headPose, rpcmsg::GameData & gameDataInstance)
+{
+    // Draw out the castle health bar
+    glm::vec3 healthBarRemainingLifeLocation = CASTLE_HEALTH_BAR_START_LOCATION;
+    healthBarRemainingLifeLocation.x -= gameDataInstance.gameState.castleHealth / 100.0f * HEALTH_BAR_WIDTH;
+    glm::vec3 healthBarEndLocation = CASTLE_HEALTH_BAR_START_LOCATION;
+    healthBarEndLocation.x -= HEALTH_BAR_WIDTH;
+    this->lineObject->drawLine(CASTLE_HEALTH_BAR_START_LOCATION, healthBarRemainingLifeLocation,
+        glm::vec3(0.0f, 1.0f, 0.0f), projection, glm::inverse(headPose), (float)HEALTH_BAR_SIZE);
+    this->lineObject->drawLine(healthBarRemainingLifeLocation, healthBarEndLocation,
+        glm::vec3(1.0f, 0.0f, 0.0f), projection, glm::inverse(headPose), (float)HEALTH_BAR_SIZE);
+
+}
+
+void TowerDefender::renderNotification(const glm::mat4 & projection, const glm::mat4 & headPose, rpcmsg::GameData & gameDataInstance)
+{
+    // Draw out the notification menu
+    for (int i = 0; i < NOTIFICATION_SCREEN_LOCATION.size(); i++) {
+        if (((i == 0) ? gameDataInstance.gameState.leftTowerReady : gameDataInstance.gameState.rightTowerReady) == false) {
+            glm::mat4 screenTransform = glm::scale(glm::mat4(1.0f), glm::vec3((float)NOTIFICATION_SIZE));
+            screenTransform = glm::rotate(glm::mat4(1.0f), glm::radians((i == 0) ? 45.0f : -45.0f), glm::vec3(0.0f, 1.0f, 0.0f)) * screenTransform;
+            screenTransform = glm::translate(glm::mat4(1.0f), NOTIFICATION_SCREEN_LOCATION[i]) * screenTransform;
+            this->playerNotReadyImageObject->draw(this->texturedShaderID, projection, glm::inverse(headPose), screenTransform);
+        }
     }
 }
 
@@ -227,112 +422,16 @@ void TowerDefender::renderScene(const glm::mat4 & projection, const glm::mat4 & 
     // Draw out the environment
     this->environmentObject->draw(this->nonTexturedShaderID, projection, glm::inverse(translatedHeadPose), this->environmentTransforms);
 
-    // Draw out the user
-    this->gameDataLock.lock();
-    rpcmsg::GameData gameDataInstance = this->gameData;
-    this->gameDataLock.unlock();
-    for (auto player = gameDataInstance.playerData.begin(); player != gameDataInstance.playerData.end(); player++) {
-        
-        uint32_t playerID = player->first;
-        uint32_t playerDominantHand = gameDataInstance.playerData[playerID].dominantHand;
-        uint32_t playerNonDominantHand = (playerDominantHand == LEFT_HAND) ? RIGHT_HAND : LEFT_HAND;
+    // Get a copy of the current data
+    rpcmsg::GameData gameDataInstance = this->currentLocalGameData;
 
-        glm::mat4 playerDominantHandTransform = rpcmsg::rpcToGLM(gameDataInstance.playerData[playerID].handData[playerDominantHand].handPose);
-        glm::mat4 playerNonDominantHandTransform = rpcmsg::rpcToGLM(gameDataInstance.playerData[playerID].handData[playerNonDominantHand].handPose);
-
-        // Use Oculus's hand data if rendering for current user (smoother)
-        /**
-        if (playerID == this->playerID) {
-            std::vector<glm::mat4> systemHandInfo = this->getHandInformation();
-            playerDominantHandTransform = systemHandInfo[playerDominantHand];
-            playerNonDominantHandTransform = systemHandInfo[playerNonDominantHand];
-        }*/
-        
-        glm::mat4 playerHeadPose = rpcmsg::rpcToGLM(gameDataInstance.playerData[playerID].headData.headPose);
-        glm::mat4 bowTransform = glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.0f, 0.1f));
-        bowTransform = playerNonDominantHandTransform * bowTransform;
-        glm::mat4 arrowTransform = rpcmsg::rpcToGLM(gameDataInstance.playerData[playerID].arrowData.arrowPose);
-
-        glm::mat4 bowStringTopTransform = bowTransform * glm::translate(glm::mat4(1.0f), ARROW_STRING_LOCATION[0]);
-        glm::mat4 bowStringDownTransform = bowTransform * glm::translate(glm::mat4(1.0f), ARROW_STRING_LOCATION[1]);
-
-        // Draw out player head
-        if (playerID != this->playerID)
-            this->helmetObject->draw(this->nonTexturedShaderID, projection, glm::inverse(translatedHeadPose), playerHeadPose);
-
-        // Draw out player's bow and arrow
-        this->bowObject->draw(this->nonTexturedShaderID, projection, glm::inverse(translatedHeadPose), bowTransform);
-        this->arrowObject->draw(this->nonTexturedShaderID, projection, glm::inverse(translatedHeadPose), arrowTransform);
-        this->sphereObject->draw(this->nonTexturedShaderID, projection, glm::inverse(translatedHeadPose), arrowTransform);
-
-        // Draw out player's hands
-        this->sphereObject->draw(this->nonTexturedShaderID, projection, glm::inverse(translatedHeadPose), playerDominantHandTransform);
-        this->sphereObject->draw(this->nonTexturedShaderID, projection, glm::inverse(translatedHeadPose), playerNonDominantHandTransform);
-
-        // Draw out the string of the arrow
-        if (gameDataInstance.playerData[playerID].arrowReadying) {
-            this->lineObject->drawLine(bowStringTopTransform[3], playerDominantHandTransform[3],
-                glm::vec3(0.0f), projection, glm::inverse(translatedHeadPose));
-            this->lineObject->drawLine(bowStringDownTransform[3], playerDominantHandTransform[3],
-                glm::vec3(0.0f), projection, glm::inverse(translatedHeadPose));
-        }
-        else
-            this->lineObject->drawLine(bowStringTopTransform[3], bowStringDownTransform[3],
-                glm::vec3(0.0f), projection, glm::inverse(translatedHeadPose));
-
-        // Draw out aim assist
-        if ((playerID == this->playerID) && gameDataInstance.playerData[playerID].arrowReadying) {
-            glm::vec3 initialPosition = playerDominantHandTransform[3];
-            glm::vec3 initialVelocity = (playerNonDominantHandTransform[3] - playerDominantHandTransform[3]) * ARROW_VELOCITY_SCALE;
-            glm::vec3 aimAssistCurrentDrawPosition = playerNonDominantHandTransform[3];
-            float flyTimeInSeconds = 0.0f;
-            while (aimAssistCurrentDrawPosition.y > 0.0f) {
-                flyTimeInSeconds += 0.05f;
-                glm::vec3 aimAssistNextDrawPosition = initialPosition + (initialVelocity * 
-                    (flyTimeInSeconds)+ 0.5f * GRAVITY * glm::vec3(0.0f, std::pow(flyTimeInSeconds, 2), 0.0f));
-                this->lineObject->drawLine(aimAssistCurrentDrawPosition, aimAssistNextDrawPosition, 
-                    AIM_ASSIST_COLOR, projection, glm::inverse(translatedHeadPose));
-                aimAssistCurrentDrawPosition = aimAssistNextDrawPosition;
-            }
-        }
-    }
-
-    // Draw out all arrows that are currently flying
-    for (auto flyingArrow = gameDataInstance.gameState.flyingArrows.begin(); 
-        flyingArrow != gameDataInstance.gameState.flyingArrows.end(); flyingArrow++) {
-        glm::mat4 arrowTransform = rpcmsg::rpcToGLM(flyingArrow->arrowPose);
-        this->arrowObject->draw(this->nonTexturedShaderID, projection, glm::inverse(translatedHeadPose), arrowTransform);
-        this->sphereObject->draw(this->nonTexturedShaderID, projection, glm::inverse(translatedHeadPose), arrowTransform);
-    }
-
-    // Draw out the notification menu
-    for (int i = 0; i < NOTIFICATION_SCREEN_LOCATION.size(); i++) {
-        if (((i == 0) ? gameDataInstance.gameState.leftTowerReady : gameDataInstance.gameState.rightTowerReady) == false) {
-            glm::mat4 screenTransform = glm::scale(glm::mat4(1.0f), glm::vec3((float)NOTIFICATION_SIZE));
-            screenTransform = glm::rotate(glm::mat4(1.0f), glm::radians((i == 0) ? 45.0f : -45.0f), glm::vec3(0.0f, 1.0f, 0.0f)) * screenTransform;
-            screenTransform = glm::translate(glm::mat4(1.0f), NOTIFICATION_SCREEN_LOCATION[i]) * screenTransform;
-            this->playerNotReadyImageObject->draw(this->texturedShaderID, projection, glm::inverse(translatedHeadPose), screenTransform);
-        }
-    }
-
-    // Draw out the castle health bar
-    glm::vec3 healthBarRemainingLifeLocation = CASTLE_HEALTH_BAR_START_LOCATION;
-    healthBarRemainingLifeLocation.x -= gameDataInstance.gameState.castleHealth / 100.0f * HEALTH_BAR_WIDTH;
-    glm::vec3 healthBarEndLocation = CASTLE_HEALTH_BAR_START_LOCATION;
-    healthBarEndLocation.x -= HEALTH_BAR_WIDTH;
-    this->lineObject->drawLine(CASTLE_HEALTH_BAR_START_LOCATION, healthBarRemainingLifeLocation,
-        glm::vec3(0.0f, 1.0f, 0.0f), projection, glm::inverse(translatedHeadPose), (float)HEALTH_BAR_SIZE);
-    this->lineObject->drawLine(healthBarRemainingLifeLocation, healthBarEndLocation,
-        glm::vec3(1.0f, 0.0f, 0.0f), projection, glm::inverse(translatedHeadPose), (float)HEALTH_BAR_SIZE);
-
-    // Draw out the score
+    // Perform render procedure
     this->renderScore(projection, translatedHeadPose, gameDataInstance);
-
-    // Handle audio
-    this->handleAudioUpdate(gameDataInstance, this->previousGameData);
-
-    // Update the game data
-    this->previousGameData = gameDataInstance;
+    this->renderPlayers(projection, translatedHeadPose, gameDataInstance);
+    this->renderFlyingArrows(projection, translatedHeadPose, gameDataInstance);
+    this->renderCastleCrashers(projection, translatedHeadPose, gameDataInstance);
+    this->renderCastleHealth(projection, translatedHeadPose, gameDataInstance);
+    this->renderNotification(projection, translatedHeadPose, gameDataInstance);
 }
 
 glm::mat4 TowerDefender::getHeadInformation() 

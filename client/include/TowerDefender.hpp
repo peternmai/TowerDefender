@@ -3,6 +3,7 @@
 #include <chrono>
 #include <mutex>
 #include <array>
+#include <queue>
 
 #include "MinimalOculus.hpp"
 #include "GameClient.hpp"
@@ -13,13 +14,20 @@
 #include "shader.hpp"
 #include "rpcMessages.hpp"
 
-#define ENVIRONMENT_OBJECT_PATH "../objects/environment.obj"
-#define BOW_OBJECT_PATH         "../objects/bow.obj"
-#define ARROW_OBJECT_PATH       "../objects/arrow.obj"
-#define SPHERE_OBJECT_PATH      "../objects/sphere.obj"
-#define HELMET_OBJECT_PATH      "../objects/helmet.obj"
-#define SCORE_TEXT_OBJECT_PATH  "../objects/scoreText.obj"
-#define NUMBER_OBJECT_PATH      "../objects/numbers/"
+#define ENVIRONMENT_OBJECT_PATH                   "../objects/environment.obj"
+#define BOW_OBJECT_PATH                           "../objects/bow.obj"
+#define ARROW_OBJECT_PATH                         "../objects/arrow.obj"
+#define SPHERE_OBJECT_PATH                        "../objects/sphere.obj"
+#define HELMET_OBJECT_PATH                        "../objects/helmet.obj"
+#define SCORE_TEXT_OBJECT_PATH                    "../objects/scoreText.obj"
+#define NUMBER_OBJECT_PATH                        "../objects/numbers/"
+#define CASTLE_CRASHER_PATH                       "../objects/castleCrashers/"
+
+#define CASTLE_CRASHER_BODY_NAME                  "body.obj"
+#define CASTLE_CRASHER_LEFT_ARM_NAME              "leftArm.obj"
+#define CASTLE_CRASHER_RIGHT_ARM_NAME             "rightArm.obj"
+#define CASTLE_CRASHER_LEFT_LEG_NAME              "leftLeg.obj"
+#define CASTLE_CRASHER_RIGHT_LEG_NAME             "rightLeg.obj"
 
 #define NONTEXTURED_GEOMETRY_VERTEX_SHADER_PATH   "../shaders/coloredGeometry.vert"
 #define NONTEXTURED_GEOMETRY_FRAGMENT_SHADER_PATH "../shaders/coloredGeometry.frag"
@@ -51,6 +59,8 @@
 #define TOTAL_SINGLE_DIGIT         10
 #define TOTAL_SCORE_DIGIT          9
 
+#define DIFFERENT_CASTLE_CRASHER   4
+
 static const float MAP_SIZE = 1000.0f;
 static const float USER_HEIGHT = 1.676f;
 static const float MAP_TRANSLATE_UP_OFFSET = MAP_SIZE * 0.0781f - USER_HEIGHT;
@@ -75,16 +85,57 @@ static const glm::vec3 AIM_ASSIST_COLOR = { 1.0f, 0.65f, 0.0f };
 static const glm::vec3 SCORE_TEXT_LOCATION = { 0.0f, 100.0f, -200.0f };
 static const glm::vec3 SCORE_CENTER_LOCATION = { 0.0f, 75.0f, -200.0f };
 
+// How much to scale each part of castle crasher
+static const std::array<float, DIFFERENT_CASTLE_CRASHER> CASTLE_CRASHER_BODY_SIZE = { 2.0f, 2.0f, 2.0f, 2.0f };
+static const std::array<float, DIFFERENT_CASTLE_CRASHER> CASTLE_CRASHER_LARM_SIZE = { 1.3f, 1.3f, 1.0f, 1.0f };
+static const std::array<float, DIFFERENT_CASTLE_CRASHER> CASTLE_CRASHER_RARM_SIZE = { 1.5f, 3.0f, 1.5f, 1.5f };
+static const std::array<float, DIFFERENT_CASTLE_CRASHER> CASTLE_CRASHER_LEG_SIZE = { 0.5f, 0.5f, 0.5f, 0.5f };
+
+// Offset prior to rotation
+static const std::array<glm::vec3, DIFFERENT_CASTLE_CRASHER> CASTLE_CRASHER_BODY_PRE_ROTATION =
+    { glm::vec3(0.0f), glm::vec3(0.0f), glm::vec3(0.0f), glm::vec3(0.0f) };
+static const std::array<glm::vec3, DIFFERENT_CASTLE_CRASHER> CASTLE_CRASHER_LEFT_ARM_PRE_ROTATION =
+    { glm::vec3(0.0f, -0.5f, 0.1f), glm::vec3(0.0f, -0.5f, 0.0f), glm::vec3(0.0f, -0.4f, 0.0f), glm::vec3(0.0f, -0.4f, 0.0f) };
+static const std::array<glm::vec3, DIFFERENT_CASTLE_CRASHER> CASTLE_CRASHER_RIGHT_ARM_PRE_ROTATION =
+    { glm::vec3(0.0f, -0.4f, 0.5f), glm::vec3(0.0f, -0.3f, 0.0f), glm::vec3(0.0f, -0.4f, 0.5f), glm::vec3(0.0f, -0.4f, 0.5f) };
+static const std::array<glm::vec3, DIFFERENT_CASTLE_CRASHER> CASTLE_CRASHER_LEFT_LEG_PRE_ROTATION =
+    { glm::vec3(0.0f, -0.2f, 0.0f), glm::vec3(0.0f, -0.2f, 0.0f), glm::vec3(0.0f, -0.2f, 0.0f), glm::vec3(0.0f, -0.2f, 0.0f) };
+static const std::array<glm::vec3, DIFFERENT_CASTLE_CRASHER> CASTLE_CRASHER_RIGHT_LEG_PRE_ROTATION =
+    { glm::vec3(0.0f, -0.2f, 0.0f), glm::vec3(0.0f, -0.2f, 0.0f), glm::vec3(0.0f, -0.2f, 0.0f), glm::vec3(0.0f, -0.2f, 0.0f) };
+
+// Offset after rotation
+static const std::array<glm::vec3, DIFFERENT_CASTLE_CRASHER> CASTLE_CRASHER_BODY_OFFSET = 
+    { glm::vec3(2.0f, 2.0f, 0.0f), glm::vec3(2.0f, 2.0f, 0.0f), glm::vec3(2.0f, 2.0f, 0.0f), glm::vec3(2.0f, 2.0f, 0.0f) };
+static const std::array<glm::vec3, DIFFERENT_CASTLE_CRASHER> CASTLE_CRASHER_LEFT_ARM_OFFSET = 
+    { glm::vec3(0.6f, -0.3f, 0.1f), glm::vec3(0.6f, -0.4f, 0.2f), glm::vec3(0.6f, -0.2f, 0.0f), glm::vec3(0.6f, -0.2f, 0.0f) };
+static const std::array<glm::vec3, DIFFERENT_CASTLE_CRASHER> CASTLE_CRASHER_RIGHT_ARM_OFFSET = 
+    { glm::vec3(-0.55f, -0.2f, 0.0f), glm::vec3(-0.6f, -0.2f, 0.0f), glm::vec3(-0.6f, -0.3f, 0.0f), glm::vec3(-0.7f, -0.2f, 0.0f) };
+static const std::array<glm::vec3, DIFFERENT_CASTLE_CRASHER> CASTLE_CRASHER_LEFT_LEG_OFFSET = 
+    { glm::vec3(0.2f, -1.0f, 0.0f), glm::vec3(0.2f, -1.0f, 0.0f), glm::vec3(0.2f, -1.0f, 0.0f), glm::vec3(0.2f, -1.0f, 0.0f) };
+static const std::array<glm::vec3, DIFFERENT_CASTLE_CRASHER> CASTLE_CRASHER_RIGHT_LEG_OFFSET = 
+    { glm::vec3(-0.2f, -1.0f, 0.0f), glm::vec3(-0.2f, -1.0f, 0.0f), glm::vec3(-0.2f, -1.0f, 0.0f), glm::vec3(-0.2f, -1.0f, 0.0f) };
+
+
 class TowerDefender : public RiftApp
 {
 private:
+
+    struct CastleCrasherObject {
+        std::unique_ptr<OBJObject> bodyObject;
+        std::unique_ptr<OBJObject> leftArmObject;
+        std::unique_ptr<OBJObject> rightArmObject;
+        std::unique_ptr<OBJObject> leftLegObject;
+        std::unique_ptr<OBJObject> rightLegObject;
+    };
+
     // Instance of game client to communicate with server
     std::unique_ptr<GameClient> gameClient;
 
     // Local copy of the server's game data
-    rpcmsg::GameData gameData;
-    rpcmsg::GameData previousGameData;
-    std::mutex gameDataLock;
+    rpcmsg::GameData incomingGameData;        // Constantly synchronizes with server (mutex needed)
+    rpcmsg::GameData previousLocalGameData;   // Local game loop copy (no mutex needed)
+    rpcmsg::GameData currentLocalGameData;    // Local game loop copy (no mutex needed)
+    std::mutex incomingGameDataLock;
     uint32_t playerID;
     uint32_t playerTower;
     bool sessionActive;
@@ -94,6 +145,7 @@ private:
 
     // Relating to objects to render
     std::array<std::unique_ptr<OBJObject>, TOTAL_SINGLE_DIGIT> numberObject;
+    std::array<CastleCrasherObject, DIFFERENT_CASTLE_CRASHER> castleCrasherObject;
     std::unique_ptr<OBJObject> scoreTextObject;
     std::unique_ptr<OBJObject> environmentObject;
     std::unique_ptr<OBJObject> bowObject;
@@ -105,6 +157,12 @@ private:
     glm::mat4 environmentTransforms;
     GLuint nonTexturedShaderID, texturedShaderID;
 
+    // Debug information
+    long long lastRenderedTime = 0;
+    std::queue<double> averageFpsQueue;
+    double averageFPS;
+    float keke = 0;
+
     // Sync up with server
     void syncWithServer();
 
@@ -114,8 +172,15 @@ private:
     std::vector<glm::mat4> getHandInformation();
     glm::mat4 getHeadInformation();
 
+    // Render functions
     void handleAudioUpdate(rpcmsg::GameData & currentGameData, rpcmsg::GameData & previousGameData);
-    void renderScore(const glm::mat4 & projection, const glm::mat4 & headPose, rpcmsg::GameData & currentGameData);
+    void renderScore(const glm::mat4 & projection, const glm::mat4 & headPose, rpcmsg::GameData & gameDataInstance);
+    void renderPlayers(const glm::mat4 & projection, const glm::mat4 & headPose, rpcmsg::GameData & gameDataInstance);
+    void renderFlyingArrows(const glm::mat4 & projection, const glm::mat4 & headPose, rpcmsg::GameData & gameDataInstance);
+    void renderCastleCrashers(const glm::mat4 & projection, const glm::mat4 & headPose, rpcmsg::GameData & gameDataInstance);
+    void renderCastleHealth(const glm::mat4 & projection, const glm::mat4 & headPose, rpcmsg::GameData & gameDataInstance);
+    void renderNotification(const glm::mat4 & projection, const glm::mat4 & headPose, rpcmsg::GameData & gameDataInstance);
+
 
 protected:
     void initGl() override;

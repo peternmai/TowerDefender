@@ -95,8 +95,10 @@ namespace rpcmsg {
     struct CastleCrasherData {
         bool         alive;
         float        health;
+        float        animationCycle;
+        rpcmsg::vec3 direction;
         rpcmsg::vec3 position;
-        MSGPACK_DEFINE_ARRAY(alive, health, position);
+        MSGPACK_DEFINE_ARRAY(alive, health, animationCycle, direction, position);
     };
 
     // RPC message that holds the current game state
