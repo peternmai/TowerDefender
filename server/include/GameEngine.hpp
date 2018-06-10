@@ -5,22 +5,43 @@
 
 #include "rpcMessages.hpp"
 
-#define REFRESH_RATE           200
+#define REFRESH_RATE           400
 #define MILLISECONDS_IN_SECOND 1000
-#define NANOSECONDS_IN_SECOND  1000000000
+#define MILLI_TO_NANOSECONDS   1000000LL
+#define NANOSECONDS_IN_SECOND  1000000000LL
 
-#define GRAVITY -9.81
-#define M_PI    3.14159265358979323846
+#define GRAVITY -9.81f
+#define M_PI    3.14159265358979323846f
 
-#define ARROW_VELOCITY_SCALE       50.0
-#define ARROW_RELOAD_ZONE_Z_OFFSET 0.30
-#define ARROW_RELOAD_ZONE_RADIUS   0.30
-#define ARROW_READY_ZONE_Z_OFFSET  0.25
-#define ARROW_READY_ZONE_RADIUS    0.25
-#define ARROW_DAMAGE               20
-#define READY_UP_RADIUS            0.5
+#define ARROW_VELOCITY_SCALE        50.0f
+#define ARROW_RELOAD_ZONE_Z_OFFSET  0.30f
+#define ARROW_RELOAD_ZONE_RADIUS    0.30f
+#define ARROW_READY_ZONE_Z_OFFSET   0.25f
+#define ARROW_READY_ZONE_RADIUS     0.25f
+#define ARROW_DAMAGE                100.0f
+#define READY_UP_RADIUS             0.5f
 
-#define CASTLE_CRASHER_HIT_RADIUS  1.50
+#define CASTLE_CRASHER_HIT_RADIUS   1.0f
+#define MAX_DIFFICULTY_SECONDS      180
+#define MAX_CASTLE_CRASHERS         75
+#define ANIMATION_TIME_SECONDS      1.0f
+#define CASTLE_CRASHER_WALK_SPEED   2.0f
+#define CASTLE_CRASHER_ATTACK_SPEED 1.0f
+#define CASTLE_CRASHER_DAMAGE       1.0f
+
+#define CASTLE_CRASHER_MAX_X        60.0f
+#define CASTLE_CRASHER_MIN_X       -55.0f
+#define CASTLE_CRASHER_MAX_Z        20.0f
+#define CASTLE_CRASHER_MIN_Z       -80.0f
+#define SPAWN_Z_RANGE               20.0f
+
+#define CHEST_MIN_X                -9.0f
+#define CHEST_MAX_X                 9.0f
+#define CHEST_Z                     12
+
+#define COMBO_TIME_SECONDS          3
+#define MAX_MULTIPLIER              16
+#define BASE_POINTS_PER_HIT         200
 
 static const glm::vec3 ARROW_POSITION_OFFSET = glm::vec3{ -0.0f, 0.0f, -0.4f };
 
@@ -36,6 +57,14 @@ private:
     rpcmsg::GameData gameData;
     std::mutex gameDataLock;
     std::unordered_map<uint32_t, rpcmsg::PlayerData> newPlayerData;
+    std::mutex newPlayerDataLock;
+
+    // Game meta data kept on server only
+    std::chrono::nanoseconds gameStartTime;
+    std::chrono::nanoseconds lastSpawnTime;
+    std::chrono::nanoseconds spawnCooldownTimer;
+    std::chrono::nanoseconds lastHitTime;
+    float comboMultiplier;
 
     std::chrono::nanoseconds lastUpdateTime;
     std::chrono::time_point<std::chrono::system_clock> start;

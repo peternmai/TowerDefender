@@ -1,5 +1,4 @@
 #include "GameEngine.hpp"
-
 #include <random>
 
 #include <LibOVR/OVR_CAPI.h>
@@ -134,7 +133,9 @@ glm::mat4 GameEngine::calculateFlyingArrowPose(const rpcmsg::ArrowData & arrowDa
 rpcmsg::GameData GameEngine::updatePlayerData(const rpcmsg::GameData & previousGameData)
 {
     // Get the new user input state
+    this->newPlayerDataLock.lock();
     std::unordered_map<uint32_t, rpcmsg::PlayerData> newPlayerDataInstance = this->newPlayerData;
+    this->newPlayerDataLock.unlock();
     std::unordered_map<uint32_t, rpcmsg::PlayerData> updatedPlayerData = previousGameData.playerData;
     rpcmsg::GameData updatedGameData = previousGameData;
 
@@ -223,7 +224,7 @@ rpcmsg::GameData GameEngine::updatePlayerData(const rpcmsg::GameData & previousG
                     updatedGameData.gameState.flyingArrows.push_back(updatedPlayerData[playerID].arrowData);
 
                     // Comment out this line to force user to wait for arrow to land before reloading
-                    updatedPlayerData[playerID].arrowData.arrowPose = rpcmsg::glmToRPC(glm::translate(glm::mat4(1.0f), glm::vec3(-1.0f)));
+                    updatedPlayerData[playerID].arrowData.arrowPose = rpcmsg::glmToRPC(glm::translate(glm::mat4(1.0f), glm::vec3(-5.0f)));
                 }
             }
 
@@ -248,7 +249,7 @@ rpcmsg::GameData GameEngine::updatePlayerData(const rpcmsg::GameData & previousG
 
         // Player dropped the arrow (arrowReleased == false && !holding)
         else {
-            updatedPlayerData[playerID].arrowData.arrowPose = rpcmsg::glmToRPC(glm::translate(glm::mat4(1.0f), glm::vec3(-1.0f)));
+            updatedPlayerData[playerID].arrowData.arrowPose = rpcmsg::glmToRPC(glm::translate(glm::mat4(1.0f), glm::vec3(-5.0f)));
             updatedPlayerData[playerID].arrowReleased = true;
             updatedPlayerData[playerID].arrowReadying = false;
         }
@@ -298,32 +299,140 @@ rpcmsg::GameData GameEngine::updateArrowData(const rpcmsg::GameData & previousGa
 
 rpcmsg::GameData GameEngine::updateCastleCrasher(const rpcmsg::GameData & previousGameData) {
 
-    // Determine if arrows hit any of the castle crashers
     rpcmsg::GameData updatedGameData = previousGameData;
-    for (auto player = updatedGameData.playerData.begin(); player != updatedGameData.playerData.begin(); player++) {
 
-        uint32_t playerID = player->first;
-        glm::vec3 arrowPosition = rpcmsg::rpcToGLM(updatedGameData.playerData[playerID].arrowData.arrowPose)[3];
-        
-        if (updatedGameData.playerData[playerID].arrowReleased && (arrowPosition.y > 0.0f)) {
-            for (auto castleCrasher = updatedGameData.gameState.castleCrasherData.begin(); castleCrasher != updatedGameData.gameState.castleCrasherData.end(); castleCrasher++) {
-                if (castleCrasher->alive) {
-                    glm::vec3 castleCrasherPosition = rpcmsg::rpcToGLM(castleCrasher->position);
-                    if (glm::length(arrowPosition - castleCrasherPosition) < CASTLE_CRASHER_HIT_RADIUS) {
-                        castleCrasher->health = std::max(castleCrasher->health - (float) ARROW_DAMAGE, 0.0f);
-                        castleCrasher->alive = (castleCrasher->health == 0.0f) ? false : true;
-                        updatedGameData.playerData[playerID].arrowData.arrowPose = rpcmsg::glmToRPC(glm::translate(glm::mat4(1.0f), glm::vec3(-1.0f)));
-                        break;
+    // Calculate time for time based calculation
+    std::chrono::nanoseconds currentTime = std::chrono::duration_cast<std::chrono::nanoseconds>(
+        std::chrono::high_resolution_clock::now().time_since_epoch());
+    std::chrono::nanoseconds startTime = std::chrono::duration_cast<std::chrono::nanoseconds>(
+        std::chrono::seconds(MAX_DIFFICULTY_SECONDS));
+
+    // Determine if arrows hit any of the castle crashers
+    for (auto arrow = updatedGameData.gameState.flyingArrows.begin(); arrow != updatedGameData.gameState.flyingArrows.end();) {
+        auto nextArrow = std::next(arrow);
+
+        // Check each castle crasher with this arrow
+        glm::vec3 arrowPosition = rpcmsg::rpcToGLM(arrow->arrowPose)[3];
+        for (auto castleCrasher = updatedGameData.gameState.castleCrasherData.begin(); castleCrasher != updatedGameData.gameState.castleCrasherData.end(); castleCrasher++) {
+            if (castleCrasher->alive) {
+                glm::vec3 castleCrasherPosition = rpcmsg::rpcToGLM(castleCrasher->position);
+
+                // See if this arrow hit castle crasher
+                if (glm::length(arrowPosition - castleCrasherPosition) < CASTLE_CRASHER_HIT_RADIUS) {
+                    castleCrasher->health = std::max(castleCrasher->health - ARROW_DAMAGE, 0.0f);
+                    castleCrasher->alive = (castleCrasher->health == 0.0f) ? false : true;
+
+                    // If castle crasher died, update score
+                    if (castleCrasher->alive == false) {
+                        updatedGameData.gameState.castleCrasherData.erase(castleCrasher);
+                        if ((currentTime - this->lastHitTime).count() < (COMBO_TIME_SECONDS * NANOSECONDS_IN_SECOND))
+                            this->comboMultiplier = std::min(this->comboMultiplier * 2.0f, (float)MAX_MULTIPLIER);
+                        else
+                            this->comboMultiplier = 1.0f;
+                        updatedGameData.gameState.gameScore += (uint32_t)(this->comboMultiplier * BASE_POINTS_PER_HIT);
+                        updatedGameData.gameState.enemyDiedCue++;
                     }
+                    this->lastHitTime = currentTime;
+                    updatedGameData.gameState.flyingArrows.erase(arrow);
+                    break;
                 }
+            }
+        }
+        arrow = nextArrow;
+    }
+
+    // Create a random generator for castle crasher generation / movement update
+    std::random_device randomDevice;
+    std::mt19937_64 randomGenerator(randomDevice());
+    std::uniform_int_distribution<unsigned long> distribution;
+
+    // See if we should spawn new castle crashers
+    if (updatedGameData.gameState.gameStarted == true) {
+
+        // Figure out the ideal number of castle crashers to show at this time
+        double idealCastleCrasherPercentAlive = ((currentTime - startTime).count()) / (double)(NANOSECONDS_IN_SECOND * MAX_DIFFICULTY_SECONDS);
+        idealCastleCrasherPercentAlive = std::min(idealCastleCrasherPercentAlive, 1.0);
+        int idealCastleCrasherAlive = (int)(MAX_CASTLE_CRASHERS * idealCastleCrasherPercentAlive);
+
+        // If ideal is higher than actual, see if we should spawn a new castle crasher
+        if (idealCastleCrasherAlive > updatedGameData.gameState.castleCrasherData.size()) {
+            if (currentTime > (lastSpawnTime + spawnCooldownTimer)) {
+
+                // Initialize new castle crasher and add them
+                rpcmsg::CastleCrasherData newCastleCrasher;
+                newCastleCrasher.id = (uint8_t)distribution(randomGenerator);
+                newCastleCrasher.alive = true;
+                newCastleCrasher.health = 100.0f;
+                newCastleCrasher.animationCycle = (float)(distribution(randomGenerator) % 360);
+                newCastleCrasher.direction = rpcmsg::glmToRPC(glm::vec3(0.0f, 0.0f, 1.0f));
+                float spawnPositionX = (float)(distribution(randomGenerator) %
+                    (long long)(CASTLE_CRASHER_MAX_X - CASTLE_CRASHER_MIN_X)) + CASTLE_CRASHER_MIN_X;
+                float spawnPositionZ = (float)(distribution(randomGenerator) %
+                    (long long)(SPAWN_Z_RANGE)) + CASTLE_CRASHER_MIN_Z;
+                newCastleCrasher.position = rpcmsg::glmToRPC(glm::vec3(spawnPositionX, -3.0f, spawnPositionZ));
+                float endPositionX = (float)(distribution(randomGenerator) % (long long)(CHEST_MAX_X - CHEST_MIN_X)) + CHEST_MIN_X;
+                newCastleCrasher.endPosition = rpcmsg::glmToRPC(glm::vec3(endPositionX, 0.5f, CHEST_Z));
+                newCastleCrasher.lastAttackTimeMilliseconds = 0;
+                updatedGameData.gameState.castleCrasherData.push_back(newCastleCrasher);
+
+                // Update spawn cooldown timer
+                float spawnTimeRandom = (float)(distribution(randomGenerator) % 1000) / 1000.0f;
+                float spawnCooldownSeconds = (60.0f / (MAX_CASTLE_CRASHERS / (MAX_DIFFICULTY_SECONDS / 60.0f))) * 2.0f * spawnTimeRandom;
+                this->spawnCooldownTimer = std::chrono::nanoseconds((long long)(spawnCooldownSeconds * NANOSECONDS_IN_SECOND));
+                this->lastSpawnTime = currentTime;
             }
         }
     }
 
-    // Update the position of each of the castle crasher
+    // Update the position of each of the castle crasher and attack damge to chest
     for (auto castleCrasher = updatedGameData.gameState.castleCrasherData.begin(); castleCrasher != updatedGameData.gameState.castleCrasherData.end(); castleCrasher++) {
         if (castleCrasher->alive) {
+            castleCrasher->animationCycle += ((1.0f / ANIMATION_TIME_SECONDS) * (1.0f / REFRESH_RATE)) * 360.0f;
+            if (castleCrasher->animationCycle >= 360.0f)
+                castleCrasher->animationCycle = 0.0f;
 
+            // Castle crasher is walking to chest
+            if (castleCrasher->position.z < CHEST_Z) {
+
+                // Update castle crasher direction
+                glm::vec3 direction = rpcmsg::rpcToGLM(castleCrasher->endPosition) - rpcmsg::rpcToGLM(castleCrasher->position);
+                castleCrasher->direction = rpcmsg::glmToRPC(direction);
+
+                // Calculate the castle crasher delta position in one second
+                glm::vec3 deltaPosition = glm::normalize(direction) * CASTLE_CRASHER_WALK_SPEED;
+                    
+                // Calculate the castle crasher updated position
+                glm::vec3 newPosition = rpcmsg::rpcToGLM(castleCrasher->position);
+                newPosition += deltaPosition / (float)REFRESH_RATE;
+
+                // Account for hills
+                float desiredY = 0.5f;
+                if (glm::length(glm::vec2(-40.0f, -40.0f) - glm::vec2(newPosition.x, newPosition.z)) < 30.0f)
+                    desiredY += ((30.0f - glm::length(glm::vec2(-40.0f, -40.0f) - glm::vec2(newPosition.x, newPosition.z))) / 30.0f) * 5.0f;
+                if (glm::length(glm::vec2(26.0f, -80.0f) - glm::vec2(newPosition.x, newPosition.z)) < 20.0f)
+                    desiredY += ((20.0f - glm::length(glm::vec2(26.0f, -80.0f) - glm::vec2(newPosition.x, newPosition.z))) / 20.0f) * 7.0f;
+                if (glm::length(glm::vec2(78.0f, -32.0f) - glm::vec2(newPosition.x, newPosition.z)) < 50.0f)
+                    desiredY += ((50.0f - glm::length(glm::vec2(78.0f, -32.0f) - glm::vec2(newPosition.x, newPosition.z))) / 50.0f) * 10.0f;
+
+                // If enemy recently spawn, gradually move enemy to surface
+                if (std::abs(desiredY - newPosition.y) > 0.1f)
+                    newPosition.y += (((desiredY - newPosition.y) > 0) ? 3.0f : -3.0f) / REFRESH_RATE;
+
+                castleCrasher->position = rpcmsg::glmToRPC(newPosition);
+
+            }
+
+            // Castle crasher is attacking chest
+            else {
+                long long nextAttackReadyAt = (castleCrasher->lastAttackTimeMilliseconds * MILLI_TO_NANOSECONDS) +
+                    (long long)((double)CASTLE_CRASHER_ATTACK_SPEED * NANOSECONDS_IN_SECOND);
+                if (nextAttackReadyAt < currentTime.count()) {
+                    updatedGameData.gameState.castleHealth = std::max(0.0f,
+                        updatedGameData.gameState.castleHealth - CASTLE_CRASHER_DAMAGE);
+                    castleCrasher->lastAttackTimeMilliseconds = (uint32_t)(currentTime.count() / MILLI_TO_NANOSECONDS);
+                }
+                
+            }
         }
     }
 
@@ -333,6 +442,13 @@ rpcmsg::GameData GameEngine::updateCastleCrasher(const rpcmsg::GameData & previo
 rpcmsg::GameData GameEngine::updateGameState(const rpcmsg::GameData & previousGameData)
 {
     rpcmsg::GameData updatedGameData = previousGameData;
+
+    // Update multiplier
+    std::chrono::nanoseconds currentTime = std::chrono::duration_cast<std::chrono::nanoseconds>(
+        std::chrono::high_resolution_clock::now().time_since_epoch());
+    if ((currentTime - this->lastHitTime).count() > (COMBO_TIME_SECONDS * NANOSECONDS_IN_SECOND))
+        this->comboMultiplier = 1.0f;
+    updatedGameData.gameState.scoreMultiplier = this->comboMultiplier;
 
     // If game state haven't started, check to see if both users are ready
     if(previousGameData.gameState.gameStarted == false) {
@@ -349,6 +465,7 @@ rpcmsg::GameData GameEngine::updateGameState(const rpcmsg::GameData & previousGa
                 updatedGameData.gameState.gameStarted = true;
                 updatedGameData.gameState.gameScore = 0;
                 updatedGameData.gameState.castleHealth = 100.0f;
+                updatedGameData.gameState.enemyDiedCue = 0;
             }
         }
     }
@@ -359,6 +476,7 @@ rpcmsg::GameData GameEngine::updateGameState(const rpcmsg::GameData & previousGa
             updatedGameData.gameState.gameStarted = false;
             updatedGameData.gameState.leftTowerReady = false;
             updatedGameData.gameState.rightTowerReady = false;
+            std::list<rpcmsg::CastleCrasherData>().swap(updatedGameData.gameState.castleCrasherData);
         }
     }
 
@@ -396,9 +514,13 @@ rpcmsg::GameData GameEngine::getCopyOfGameData() {
 }
 
 void GameEngine::handleNewUserInput(uint32_t playerID, const rpcmsg::PlayerData & newInputs) {
+    this->newPlayerDataLock.lock();
     this->newPlayerData[playerID] = newInputs;
+    this->newPlayerDataLock.unlock();
 }
 
 void GameEngine::removeUser(uint32_t playerID) {
+    this->newPlayerDataLock.lock();
     this->newPlayerData.erase(playerID);
+    this->newPlayerDataLock.unlock();
 }

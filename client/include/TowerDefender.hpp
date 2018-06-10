@@ -4,6 +4,7 @@
 #include <mutex>
 #include <array>
 #include <queue>
+#include <cmath>
 
 #include "MinimalOculus.hpp"
 #include "GameClient.hpp"
@@ -22,6 +23,7 @@
 #define SCORE_TEXT_OBJECT_PATH                    "../objects/scoreText.obj"
 #define NUMBER_OBJECT_PATH                        "../objects/numbers/"
 #define CASTLE_CRASHER_PATH                       "../objects/castleCrashers/"
+#define COMBO_MULTIPLIER_PATH                     "../objects/combo/"
 
 #define CASTLE_CRASHER_BODY_NAME                  "body.obj"
 #define CASTLE_CRASHER_LEFT_ARM_NAME              "leftArm.obj"
@@ -41,6 +43,8 @@
 
 #define PLAYER_NOT_READY_TEXTURE_PATH             "../textures/PlayerNotReadyTexture.ppm"
 
+#define M_PI                       3.14159265358979323846
+
 #define HAND_SIZE                  0.1
 #define HELMET_SIZE                0.4
 #define SCORE_TEXT_SIZE            40
@@ -49,6 +53,7 @@
 #define NOTIFICATION_SIZE          7
 #define HEALTH_BAR_SIZE            200
 #define HEALTH_BAR_WIDTH           20
+#define MAX_MULTIPLIER             16
 
 #define SYNC_RATE                  200
 #define NANOSECONDS_IN_SECOND      1000000000
@@ -62,7 +67,7 @@
 #define DIFFERENT_CASTLE_CRASHER   4
 
 static const float MAP_SIZE = 1000.0f;
-static const float USER_HEIGHT = 1.676f;
+static const float USER_HEIGHT = 1.8f;
 static const float MAP_TRANSLATE_UP_OFFSET = MAP_SIZE * 0.0781f - USER_HEIGHT;
 
 static const std::vector<glm::vec3> USER_TRANSLATION = {
@@ -145,6 +150,7 @@ private:
 
     // Relating to objects to render
     std::array<std::unique_ptr<OBJObject>, TOTAL_SINGLE_DIGIT> numberObject;
+    //std::array<std::unique_ptr<OBJObject>, std::log2(MAX_MULTIPLIER) + 1> comboObject;
     std::array<CastleCrasherObject, DIFFERENT_CASTLE_CRASHER> castleCrasherObject;
     std::unique_ptr<OBJObject> scoreTextObject;
     std::unique_ptr<OBJObject> environmentObject;

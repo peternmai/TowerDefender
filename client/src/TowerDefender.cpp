@@ -7,7 +7,7 @@
 #include <vector>
 #include <thread>
 
-const bool SHOW_DEBUG_FPS = true;
+const bool SHOW_DEBUG_FPS = false;
 
 TowerDefender::TowerDefender(std::string ipAddress, int portNumber) 
 {
@@ -237,6 +237,10 @@ void TowerDefender::handleAudioUpdate(rpcmsg::GameData & currentGameData,
     if (!previousGameData.gameState.rightTowerReady && currentGameData.gameState.rightTowerReady)
         this->audioPlayer->play(CONFIRMATION_AUDIO_PATH);
 
+    // Play sound when an enemy dies
+    if (previousGameData.gameState.enemyDiedCue != currentGameData.gameState.enemyDiedCue)
+        this->audioPlayer->play(CONFIRMATION_AUDIO_PATH);
+
 }
 
 void TowerDefender::renderScore(const glm::mat4 & projection,
@@ -338,17 +342,18 @@ void TowerDefender::renderFlyingArrows(const glm::mat4 & projection, const glm::
 
 void TowerDefender::renderCastleCrashers(const glm::mat4 & projection, const glm::mat4 & headPose, rpcmsg::GameData & gameDataInstance)
 {
-    for (int j = 0; j < 75; j++) {
+    for (auto castleCrasher = gameDataInstance.gameState.castleCrasherData.begin();
+        castleCrasher != gameDataInstance.gameState.castleCrasherData.end(); castleCrasher++) {
 
         // Calculate the rotation of the legs/arms
-        float rotationAngle = (keke <= 180.0f) ? keke : (360.0f - keke);
+        float rotationAngle = (castleCrasher->animationCycle <= 180.0f) ? castleCrasher->animationCycle : (360.0f - castleCrasher->animationCycle);
         float leftArmRotation = rotationAngle / 1.5f - 60.0f;
         float rightArmRotation = rotationAngle / -1.5f - 60.0f;
         float leftLegRotation = rotationAngle / 1.5f - 60.0f;
         float rightLegRotation = rotationAngle / -1.5f + 60.0f;
 
         // Calculate transforms of castle crasher and draw them out
-        int castleCrasherID = 0;
+        int castleCrasherID = castleCrasher->id % DIFFERENT_CASTLE_CRASHER;
         glm::mat4 leftArmTransform = glm::translate(glm::mat4(1.0f), CASTLE_CRASHER_LEFT_ARM_PRE_ROTATION[castleCrasherID]);
         leftArmTransform = glm::rotate(glm::mat4(1.0f), glm::radians(leftArmRotation), glm::vec3(1.0f, 0.0f, 0.0f)) * leftArmTransform;
         leftArmTransform = glm::translate(glm::mat4(1.0f), CASTLE_CRASHER_LEFT_ARM_OFFSET[castleCrasherID]) * leftArmTransform;
@@ -362,20 +367,24 @@ void TowerDefender::renderCastleCrashers(const glm::mat4 & projection, const glm
         rightLegTransform = glm::rotate(glm::mat4(1.0f), glm::radians(rightLegRotation), glm::vec3(1.0f, 0.0f, 0.0f)) * rightLegTransform;
         rightLegTransform = glm::translate(glm::mat4(1.0f), CASTLE_CRASHER_RIGHT_LEG_OFFSET[castleCrasherID]) * rightLegTransform;
 
-
-        glm::mat4 castleCrasherLocation = glm::translate(glm::mat4(1.0f), glm::vec3(-15.0f, 17.0f, -3.0f));
+        float arrowXZ_Angle = ((float)glm::atan(castleCrasher->direction.z / castleCrasher->direction.x) + (float)(1.5 * M_PI)) * -1.0f;
+        arrowXZ_Angle += (castleCrasher->direction.x < 0.0f) ? (float) M_PI : 0.0f;
+        glm::mat4 castleCrasherRotation = glm::rotate(glm::mat4(1.0f), arrowXZ_Angle, glm::vec3(0.0f, 1.0f, 0.0f));
+        glm::mat4 castleCrasherLocation = glm::translate(glm::mat4(1.0f), rpcmsg::rpcToGLM(castleCrasher->position));
+        //glm::mat4 castleCrasherLocation = glm::translate(glm::mat4(1.0f), glm::vec3(78.0f, 7.0f, -32.0f));
+        glm::mat4 castleCrasherTransform = castleCrasherLocation * castleCrasherRotation;
 
         // Draw out the castle crasher
         this->castleCrasherObject[castleCrasherID].bodyObject->draw(this->nonTexturedShaderID, projection,
-            glm::inverse(headPose), castleCrasherLocation);
+            glm::inverse(headPose), castleCrasherTransform);
         this->castleCrasherObject[castleCrasherID].leftArmObject->draw(this->nonTexturedShaderID, projection,
-            glm::inverse(headPose), castleCrasherLocation * leftArmTransform);
+            glm::inverse(headPose), castleCrasherTransform * leftArmTransform);
         this->castleCrasherObject[castleCrasherID].rightArmObject->draw(this->nonTexturedShaderID, projection,
-            glm::inverse(headPose), castleCrasherLocation * rightArmTransform);
+            glm::inverse(headPose), castleCrasherTransform * rightArmTransform);
         this->castleCrasherObject[castleCrasherID].leftLegObject->draw(this->nonTexturedShaderID, projection,
-            glm::inverse(headPose), castleCrasherLocation * leftLegTransform);
+            glm::inverse(headPose), castleCrasherTransform * leftLegTransform);
         this->castleCrasherObject[castleCrasherID].rightLegObject->draw(this->nonTexturedShaderID, projection,
-            glm::inverse(headPose), castleCrasherLocation * rightLegTransform);
+            glm::inverse(headPose), castleCrasherTransform * rightLegTransform);
     }
 
     keke += 1.0f;

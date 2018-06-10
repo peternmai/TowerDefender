@@ -93,12 +93,17 @@ namespace rpcmsg {
 
     // RPC message that holds all data relating to a single castle crasher
     struct CastleCrasherData {
+        uint8_t      id;
         bool         alive;
         float        health;
         float        animationCycle;
         rpcmsg::vec3 direction;
         rpcmsg::vec3 position;
-        MSGPACK_DEFINE_ARRAY(alive, health, animationCycle, direction, position);
+        rpcmsg::vec3 endPosition;
+        uint32_t     nextDirectionChangeTimeMilliseconds;
+        uint32_t     lastAttackTimeMilliseconds;
+        MSGPACK_DEFINE_ARRAY(id, alive, health, animationCycle, direction, position, 
+            endPosition, nextDirectionChangeTimeMilliseconds, lastAttackTimeMilliseconds);
     };
 
     // RPC message that holds the current game state
@@ -108,10 +113,12 @@ namespace rpcmsg {
         float    castleHealth;
         bool     leftTowerReady;
         bool     rightTowerReady;
+        uint32_t enemyDiedCue;
+        uint32_t scoreMultiplier;
         std::list<rpcmsg::CastleCrasherData> castleCrasherData;
         std::list<rpcmsg::ArrowData> flyingArrows;
         MSGPACK_DEFINE_ARRAY(gameStarted, gameScore, castleHealth, leftTowerReady, 
-            rightTowerReady, castleCrasherData, flyingArrows);
+            rightTowerReady, enemyDiedCue, scoreMultiplier, castleCrasherData, flyingArrows);
     };
 
     // RPC message that holds a copy of the entire game state

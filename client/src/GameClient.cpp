@@ -69,6 +69,6 @@ rpc::client::connection_state GameClient::getConnectionState() {
 
 GameClient::~GameClient()
 {
-    if (this->validPlayerSession)
+    if (this->validPlayerSession && (this->client->get_connection_state() == rpc::client::connection_state::connected))
         this->client->call(rpcmsg::CLOSE_SERVER_SESSION, this->playerID);
 }
