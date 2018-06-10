@@ -106,6 +106,14 @@ namespace rpcmsg {
             endPosition, nextDirectionChangeTimeMilliseconds, lastAttackTimeMilliseconds);
     };
 
+    // RPC message that holds data about how to display combo text
+    struct MultiplierDisplayData {
+        uint32_t     multiplier;
+        rpcmsg::mat4 pose;
+        float        opacity;
+        MSGPACK_DEFINE_ARRAY(multiplier, pose, opacity);
+    };
+
     // RPC message that holds the current game state
     struct GameState {
         bool     gameStarted;
@@ -117,8 +125,10 @@ namespace rpcmsg {
         uint32_t scoreMultiplier;
         std::list<rpcmsg::CastleCrasherData> castleCrasherData;
         std::list<rpcmsg::ArrowData> flyingArrows;
+        std::list<rpcmsg::MultiplierDisplayData> multiplierDisplayData;
         MSGPACK_DEFINE_ARRAY(gameStarted, gameScore, castleHealth, leftTowerReady, 
-            rightTowerReady, enemyDiedCue, scoreMultiplier, castleCrasherData, flyingArrows);
+            rightTowerReady, enemyDiedCue, scoreMultiplier, castleCrasherData, 
+            flyingArrows, multiplierDisplayData);
     };
 
     // RPC message that holds a copy of the entire game state

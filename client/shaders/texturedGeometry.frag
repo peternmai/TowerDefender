@@ -6,5 +6,5 @@ out vec4 color;
 uniform sampler2D renderedTexture;
 
 void main() {
-	color = vec4(texture( renderedTexture, UV ).rgb, 0.0f);
+	color = vec4(texture( renderedTexture, UV ).rgb, 1.0f);
 }

@@ -36,5 +36,6 @@ public:
     OBJObject(std::string filename, float size);
     ~OBJObject();
 
-    void draw(GLuint shaderProgram, const glm::mat4 & projection, const glm::mat4 & headPose, const glm::mat4 & transforms);
+    void draw(GLuint shaderProgram, const glm::mat4 & projection, const glm::mat4 & headPose, 
+        const glm::mat4 & transforms, const float opacity = 1.0f);
 };

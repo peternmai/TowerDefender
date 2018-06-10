@@ -54,6 +54,8 @@
 #define HEALTH_BAR_SIZE            200
 #define HEALTH_BAR_WIDTH           20
 #define MAX_MULTIPLIER             16
+#define LOG2_16                    4
+#define MULTIPLIER_TEXT_COMBO_SIZE 4
 
 #define SYNC_RATE                  200
 #define NANOSECONDS_IN_SECOND      1000000000
@@ -150,7 +152,7 @@ private:
 
     // Relating to objects to render
     std::array<std::unique_ptr<OBJObject>, TOTAL_SINGLE_DIGIT> numberObject;
-    //std::array<std::unique_ptr<OBJObject>, std::log2(MAX_MULTIPLIER) + 1> comboObject;
+    std::array<std::unique_ptr<OBJObject>, LOG2_16 + 1> comboObject;
     std::array<CastleCrasherObject, DIFFERENT_CASTLE_CRASHER> castleCrasherObject;
     std::unique_ptr<OBJObject> scoreTextObject;
     std::unique_ptr<OBJObject> environmentObject;
@@ -186,6 +188,7 @@ private:
     void renderCastleCrashers(const glm::mat4 & projection, const glm::mat4 & headPose, rpcmsg::GameData & gameDataInstance);
     void renderCastleHealth(const glm::mat4 & projection, const glm::mat4 & headPose, rpcmsg::GameData & gameDataInstance);
     void renderNotification(const glm::mat4 & projection, const glm::mat4 & headPose, rpcmsg::GameData & gameDataInstance);
+    void renderComboText(const glm::mat4 & projection, const glm::mat4 & headPose, rpcmsg::GameData & gameDataInstance);
 
 
 protected:

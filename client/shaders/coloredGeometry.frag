@@ -1,5 +1,7 @@
 #version 330 core
 
+uniform float opacity;
+
 in vec3 vertColor;
 in vec3 vertNormal;
 in vec3 vertPosition;
@@ -31,5 +33,5 @@ void main(void) {
 	vec3 specularColor = specularCoefficient * spec * lightColor;
 
 	// Set color of vertex
-	fragColor = vec4((ambientColor + diffuseColor + specularColor) * vertColor, 1.0f);
+	fragColor = vec4((ambientColor + diffuseColor + specularColor) * vertColor, opacity);
 }

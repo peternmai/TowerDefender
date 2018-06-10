@@ -74,6 +74,7 @@ void GameEngine::updateProcedure()
     // Perform update procedure
     updatedGameData = this->updatePlayerData(updatedGameData);
     updatedGameData = this->updateArrowData(updatedGameData);
+    updatedGameData = this->updateMultiplierDisplay(updatedGameData);
     updatedGameData = this->updateCastleCrasher(updatedGameData);
     updatedGameData = this->updateGameState(updatedGameData);
     updatedGameData = this->updateEasterEgg(updatedGameData);
@@ -331,6 +332,15 @@ rpcmsg::GameData GameEngine::updateCastleCrasher(const rpcmsg::GameData & previo
                             this->comboMultiplier = 1.0f;
                         updatedGameData.gameState.gameScore += (uint32_t)(this->comboMultiplier * BASE_POINTS_PER_HIT);
                         updatedGameData.gameState.enemyDiedCue++;
+
+                        // Add multiplier
+                        rpcmsg::MultiplierDisplayData newMultiplierDisplayData;
+                        glm::vec3 multiplierLocation = castleCrasherPosition;
+                        multiplierLocation.y += 5.0f;
+                        newMultiplierDisplayData.pose = rpcmsg::glmToRPC(glm::translate(glm::mat4(1.0f), multiplierLocation));
+                        newMultiplierDisplayData.opacity = 1.0f;
+                        newMultiplierDisplayData.multiplier = (uint32_t) this->comboMultiplier;
+                        updatedGameData.gameState.multiplierDisplayData.push_back(newMultiplierDisplayData);
                     }
                     this->lastHitTime = currentTime;
                     updatedGameData.gameState.flyingArrows.erase(arrow);
@@ -439,6 +449,29 @@ rpcmsg::GameData GameEngine::updateCastleCrasher(const rpcmsg::GameData & previo
     return updatedGameData;
 }
 
+rpcmsg::GameData GameEngine::updateMultiplierDisplay(const rpcmsg::GameData & previousGameData)
+{
+    rpcmsg::GameData updatedGameData = previousGameData;
+    for (auto multiplierData = updatedGameData.gameState.multiplierDisplayData.begin();
+        multiplierData != updatedGameData.gameState.multiplierDisplayData.end();) {
+        
+        // No more opacity, don't have to render anymore
+        if (multiplierData->opacity <= 0.0f)
+            multiplierData = updatedGameData.gameState.multiplierDisplayData.erase(multiplierData);
+
+        // Else, update how to draw
+        else {
+            glm::vec3 multiplierLocation = rpcmsg::rpcToGLM(multiplierData->pose)[3];
+            multiplierLocation.y += 1.0f / REFRESH_RATE;
+            multiplierData->pose = rpcmsg::glmToRPC(glm::translate(glm::mat4(1.0f), multiplierLocation));
+            multiplierData->opacity -= 1.0f / REFRESH_RATE;
+            multiplierData++;
+        }
+    }
+
+    return updatedGameData;
+}
+
 rpcmsg::GameData GameEngine::updateGameState(const rpcmsg::GameData & previousGameData)
 {
     rpcmsg::GameData updatedGameData = previousGameData;
@@ -448,7 +481,7 @@ rpcmsg::GameData GameEngine::updateGameState(const rpcmsg::GameData & previousGa
         std::chrono::high_resolution_clock::now().time_since_epoch());
     if ((currentTime - this->lastHitTime).count() > (COMBO_TIME_SECONDS * NANOSECONDS_IN_SECOND))
         this->comboMultiplier = 1.0f;
-    updatedGameData.gameState.scoreMultiplier = this->comboMultiplier;
+    updatedGameData.gameState.scoreMultiplier = (uint32_t) this->comboMultiplier;
 
     // If game state haven't started, check to see if both users are ready
     if(previousGameData.gameState.gameStarted == false) {

@@ -152,7 +152,7 @@ const aiScene * OBJObject::loadModel(const std::string & filename) {
 }
 
 void OBJObject::draw(GLuint shaderProgram, const glm::mat4 & projection,
-    const glm::mat4 & headPose, const glm::mat4 & transforms) {
+    const glm::mat4 & headPose, const glm::mat4 & transforms, const float opacity) {
 
     // Shift and scale object to center. Apply specified transformation
     glm::mat4 toWorld = this->centerAndScaleTransformation;
@@ -164,16 +164,20 @@ void OBJObject::draw(GLuint shaderProgram, const glm::mat4 & projection,
 
         // Use the specify shader
         glUseProgram(shaderProgram);
+        glEnable(GL_BLEND);
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
         // Get uniform location to send local variable to shader
         GLuint uModel = glGetUniformLocation(shaderProgram, "ModelMatrix");
         GLuint uProjection = glGetUniformLocation(shaderProgram, "ProjectionMatrix");
         GLuint uCamera = glGetUniformLocation(shaderProgram, "CameraMatrix");
+        GLuint uOpacity = glGetUniformLocation(shaderProgram, "opacity");
 
         // Send variable
         glUniformMatrix4fv(uModel, 1, GL_FALSE, &toWorld[0][0]);
         glUniformMatrix4fv(uProjection, 1, GL_FALSE, &projection[0][0]);
         glUniformMatrix4fv(uCamera, 1, GL_FALSE, &headPose[0][0]);
+        glUniform1f(uOpacity, opacity);
 
         // Draw the mesh
         glBindVertexArray(this->meshes[i].VAO);

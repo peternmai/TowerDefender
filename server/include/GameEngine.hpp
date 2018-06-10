@@ -21,7 +21,7 @@
 #define ARROW_DAMAGE                100.0f
 #define READY_UP_RADIUS             0.5f
 
-#define CASTLE_CRASHER_HIT_RADIUS   1.0f
+#define CASTLE_CRASHER_HIT_RADIUS   1.1f
 #define MAX_DIFFICULTY_SECONDS      180
 #define MAX_CASTLE_CRASHERS         75
 #define ANIMATION_TIME_SECONDS      1.0f
@@ -84,6 +84,7 @@ private:
     void updateProcedure();
     rpcmsg::GameData updatePlayerData(const rpcmsg::GameData & previousGameData);
     rpcmsg::GameData updateArrowData(const rpcmsg::GameData & previousGameData);
+    rpcmsg::GameData updateMultiplierDisplay(const rpcmsg::GameData & previousGameData);
     rpcmsg::GameData updateCastleCrasher(const rpcmsg::GameData & previousGameData);
     rpcmsg::GameData updateGameState(const rpcmsg::GameData & previousGameData);
     rpcmsg::GameData updateEasterEgg(const rpcmsg::GameData & previousGameData);

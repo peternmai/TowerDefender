@@ -75,6 +75,11 @@ void TowerDefender::initGl() {
     this->helmetObject = std::make_unique<OBJObject>(std::string(HELMET_OBJECT_PATH), (float) HELMET_SIZE);
     this->scoreTextObject = std::make_unique<OBJObject>(std::string(SCORE_TEXT_OBJECT_PATH), (float) SCORE_TEXT_SIZE);
 
+    // Load in combo text to render
+    for (int multiplier = 1; multiplier <= MAX_MULTIPLIER; multiplier *= 2)
+        this->comboObject[(int)std::log2(multiplier)] = std::make_unique<OBJObject>(std::string(COMBO_MULTIPLIER_PATH) + "x" +
+            std::to_string(multiplier) + ".obj", (float)MULTIPLIER_TEXT_COMBO_SIZE);
+
     // Load in images to render
     this->playerNotReadyImageObject = std::make_unique<Image>(std::string(PLAYER_NOT_READY_TEXTURE_PATH));
 
@@ -272,12 +277,11 @@ void TowerDefender::renderPlayers(const glm::mat4 & projection, const glm::mat4 
         glm::mat4 playerNonDominantHandTransform = rpcmsg::rpcToGLM(gameDataInstance.playerData[playerID].handData[playerNonDominantHand].handPose);
 
         // Use Oculus's hand data if rendering for current user (smoother)
-        /**
         if (playerID == this->playerID) {
-        std::vector<glm::mat4> systemHandInfo = this->getHandInformation();
-        playerDominantHandTransform = systemHandInfo[playerDominantHand];
-        playerNonDominantHandTransform = systemHandInfo[playerNonDominantHand];
-        }*/
+            std::vector<glm::mat4> systemHandInfo = this->getHandInformation();
+            playerDominantHandTransform = systemHandInfo[playerDominantHand];
+            playerNonDominantHandTransform = systemHandInfo[playerNonDominantHand];
+        }
 
         glm::mat4 playerHeadPose = rpcmsg::rpcToGLM(gameDataInstance.playerData[playerID].headData.headPose);
         glm::mat4 bowTransform = glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.0f, 0.1f));
@@ -371,7 +375,6 @@ void TowerDefender::renderCastleCrashers(const glm::mat4 & projection, const glm
         arrowXZ_Angle += (castleCrasher->direction.x < 0.0f) ? (float) M_PI : 0.0f;
         glm::mat4 castleCrasherRotation = glm::rotate(glm::mat4(1.0f), arrowXZ_Angle, glm::vec3(0.0f, 1.0f, 0.0f));
         glm::mat4 castleCrasherLocation = glm::translate(glm::mat4(1.0f), rpcmsg::rpcToGLM(castleCrasher->position));
-        //glm::mat4 castleCrasherLocation = glm::translate(glm::mat4(1.0f), glm::vec3(78.0f, 7.0f, -32.0f));
         glm::mat4 castleCrasherTransform = castleCrasherLocation * castleCrasherRotation;
 
         // Draw out the castle crasher
@@ -419,6 +422,25 @@ void TowerDefender::renderNotification(const glm::mat4 & projection, const glm::
     }
 }
 
+void TowerDefender::renderComboText(const glm::mat4 & projection, const glm::mat4 & headPose, rpcmsg::GameData & gameDataInstance)
+{
+    // Draw out the combo text so it faces the user
+    for (auto multiplierText = gameDataInstance.gameState.multiplierDisplayData.begin();
+        multiplierText != gameDataInstance.gameState.multiplierDisplayData.end(); multiplierText++) {
+        
+        glm::vec3 playerHeadLocation = rpcmsg::rpcToGLM(gameDataInstance.playerData[playerID].headData.headPose)[3];
+        glm::vec3 multiplierLocation = rpcmsg::rpcToGLM(multiplierText->pose)[3];
+        glm::vec3 direction = playerHeadLocation - multiplierLocation;
+        float arrowXZ_Angle = ((float)glm::atan(direction.z / direction.x) + (float)(1.5 * M_PI)) * -1.0f;
+        arrowXZ_Angle += (direction.x < 0.0f) ? (float)M_PI : 0.0f;
+        
+        glm::mat4 comboTextTransform = glm::rotate(glm::mat4(1.0f), arrowXZ_Angle, glm::vec3(0.0f, 1.0f, 0.0f));
+        comboTextTransform = rpcmsg::rpcToGLM(multiplierText->pose) * comboTextTransform;
+        this->comboObject[(int)std::log2(multiplierText->multiplier)]->draw(this->nonTexturedShaderID,
+            projection, glm::inverse(headPose), comboTextTransform, multiplierText->opacity);
+    }
+}
+
 void TowerDefender::renderScene(const glm::mat4 & projection, const glm::mat4 & headPose)
 {
     // Register player if we haven't. This is a blocking call
@@ -441,6 +463,7 @@ void TowerDefender::renderScene(const glm::mat4 & projection, const glm::mat4 & 
     this->renderCastleCrashers(projection, translatedHeadPose, gameDataInstance);
     this->renderCastleHealth(projection, translatedHeadPose, gameDataInstance);
     this->renderNotification(projection, translatedHeadPose, gameDataInstance);
+    this->renderComboText(projection, translatedHeadPose, gameDataInstance);
 }
 
 glm::mat4 TowerDefender::getHeadInformation() 
