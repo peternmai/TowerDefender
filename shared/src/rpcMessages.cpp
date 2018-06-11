@@ -1,4 +1,5 @@
 #include "rpcMessages.hpp"
+#include <iostream>
 
 // Convert glm::vec2 over to an RPC message
 rpcmsg::vec2 rpcmsg::glmToRPC(const glm::vec2 & data) {
@@ -42,8 +43,18 @@ glm::vec4 rpcmsg::rpcToGLM(const rpcmsg::vec4 & data) {
 // Convert the RPC message's version of glm::mat4 back to glm::mat4
 glm::mat4 rpcmsg::rpcToGLM(const rpcmsg::mat4 & data) {
     glm::mat4 result;
-    for (int row = 0; row < 4; row++)
-        for (int col = 0; col < 4; col++)
-            result[row][col] = data[row][col];
+
+    // Weird bug passing in hand pose for updatePlayerData() loop on server.
+    // Temporary fix -- TODO: figure out why
+    try {
+        for (int row = 0; row < 4; row++)
+            for (int col = 0; col < 4; col++)
+                result[row][col] = data[row][col];
+    }
+    catch (const std::exception&) {
+        std::cerr << "Weird exception..." << std::endl;
+        glm::mat4 result = glm::mat4(1.0f);
+    }
+
     return result;
 }

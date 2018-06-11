@@ -37,6 +37,7 @@
 #define TEXTURED_GEOMETRY_FRAGMENT_SHADER_PATH    "../shaders/texturedGeometry.frag"
 
 #define CALM_BACKGROUND_AUDIO_PATH                "../audio/Voyage_through_Wood_and_Sea.wav"
+#define FESTIVE_BACKGROUND_AUDIO_PATH             "../audio/8_Bit_Win!_-_By_HeatleyBros.wav"
 #define ARROW_FIRING_AUDIO_PATH                   "../audio/arrow_firing.wav"
 #define ARROW_STRETCHING_AUDIO_PATH               "../audio/arrow_stretching.wav"
 #define CONFIRMATION_AUDIO_PATH                   "../audio/confirmation.wav"

@@ -90,6 +90,7 @@ void TowerDefender::initGl() {
 
     // Load in all the music files
     this->audioPlayer->loadAudioFile(CALM_BACKGROUND_AUDIO_PATH);
+	this->audioPlayer->loadAudioFile(FESTIVE_BACKGROUND_AUDIO_PATH);
     this->audioPlayer->loadAudioFile(ARROW_FIRING_AUDIO_PATH);
     this->audioPlayer->loadAudioFile(ARROW_STRETCHING_AUDIO_PATH);
     this->audioPlayer->loadAudioFile(CONFIRMATION_AUDIO_PATH);
@@ -216,13 +217,16 @@ void TowerDefender::handleAudioUpdate(rpcmsg::GameData & currentGameData,
      rpcmsg::GameData & previousGameData)
 {
     // See if we should change background audio
-    /**
     if (currentGameData.gameState.gameStarted != previousGameData.gameState.gameStarted) {
-        if (currentGameData.gameState.gameStarted == true)
+        if (currentGameData.gameState.gameStarted == true) {
+            this->audioPlayer->stop(CALM_BACKGROUND_AUDIO_PATH);
+            this->audioPlayer->play(FESTIVE_BACKGROUND_AUDIO_PATH, true);
+        }
+        else {
+            this->audioPlayer->stop(FESTIVE_BACKGROUND_AUDIO_PATH);
             this->audioPlayer->play(CALM_BACKGROUND_AUDIO_PATH, true);
-        else
-            this->audioPlayer->play(CALM_BACKGROUND_AUDIO_PATH, true);
-    }*/
+        }
+    }
 
     // See if we should play audio for user shooting / stretching arrow
     if (currentGameData.playerData.find(this->playerID) != currentGameData.playerData.end()) {
@@ -298,7 +302,6 @@ void TowerDefender::renderPlayers(const glm::mat4 & projection, const glm::mat4 
         // Draw out player's bow and arrow
         this->bowObject->draw(this->nonTexturedShaderID, projection, glm::inverse(headPose), bowTransform);
         this->arrowObject->draw(this->nonTexturedShaderID, projection, glm::inverse(headPose), arrowTransform);
-        this->sphereObject->draw(this->nonTexturedShaderID, projection, glm::inverse(headPose), arrowTransform);
 
         // Draw out player's hands
         this->sphereObject->draw(this->nonTexturedShaderID, projection, glm::inverse(headPose), playerDominantHandTransform);
@@ -340,7 +343,6 @@ void TowerDefender::renderFlyingArrows(const glm::mat4 & projection, const glm::
         flyingArrow != gameDataInstance.gameState.flyingArrows.end(); flyingArrow++) {
         glm::mat4 arrowTransform = rpcmsg::rpcToGLM(flyingArrow->arrowPose);
         this->arrowObject->draw(this->nonTexturedShaderID, projection, glm::inverse(headPose), arrowTransform);
-        this->sphereObject->draw(this->nonTexturedShaderID, projection, glm::inverse(headPose), arrowTransform);
     }
 }
 
