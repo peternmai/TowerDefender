@@ -115,7 +115,7 @@ glm::mat4 GameEngine::calculateFlyingArrowPose(const rpcmsg::ArrowData & arrowDa
     uint64_t  initArrowLaunchTime = arrowData.launchTimeMilliseconds;
 
     glm::vec3 arrowPosition = this->calculateProjectilePosition(initArrowVelocity, initArrowPosition, initArrowLaunchTime);
-    glm::vec3 nextArrowPosition = this->calculateProjectilePosition(initArrowVelocity, initArrowPosition, initArrowLaunchTime + MILLISECONDS_IN_SECOND / 200);
+    glm::vec3 nextArrowPosition = this->calculateProjectilePosition(initArrowVelocity, initArrowPosition, initArrowLaunchTime - MILLISECONDS_IN_SECOND / 200);
     glm::vec3 arrowVelocity = this->calculateProjectileVelocity(initArrowVelocity, initArrowLaunchTime);
 
     glm::vec3 arrowDirection = (nextArrowPosition - arrowPosition);
