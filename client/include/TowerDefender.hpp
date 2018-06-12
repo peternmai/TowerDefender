@@ -23,6 +23,7 @@
 #define SCORE_TEXT_OBJECT_PATH                    "../objects/scoreText.obj"
 #define NUMBER_OBJECT_PATH                        "../objects/numbers/"
 #define CASTLE_CRASHER_PATH                       "../objects/castleCrashers/"
+#define SLINKY_OBJECT_PATH                        "../objects/slinky.obj"
 #define COMBO_MULTIPLIER_PATH                     "../objects/combo/"
 
 #define CASTLE_CRASHER_BODY_NAME                  "body.obj"
@@ -47,6 +48,7 @@
 #define M_PI                       3.14159265358979323846
 
 #define HAND_SIZE                  0.1
+#define SLINKY_SIZE                0.2
 #define HELMET_SIZE                0.4
 #define SCORE_TEXT_SIZE            40
 #define SCORE_DIGIT_SIZE           20
@@ -161,6 +163,7 @@ private:
     std::unique_ptr<OBJObject> arrowObject;
     std::unique_ptr<OBJObject> sphereObject;
     std::unique_ptr<OBJObject> helmetObject;
+    std::unique_ptr<OBJObject> slinkyObject;
     std::unique_ptr<Lines> lineObject;
     std::unique_ptr<Image> playerNotReadyImageObject;
     glm::mat4 environmentTransforms;

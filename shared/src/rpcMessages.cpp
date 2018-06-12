@@ -53,7 +53,7 @@ glm::mat4 rpcmsg::rpcToGLM(const rpcmsg::mat4 & data) {
     }
     catch (const std::exception&) {
         std::cerr << "Weird exception..." << std::endl;
-        glm::mat4 result = glm::mat4(1.0f);
+        result = glm::mat4(1.0f);
     }
 
     return result;

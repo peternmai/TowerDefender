@@ -7,7 +7,8 @@
 #include <vector>
 #include <thread>
 
-const bool SHOW_DEBUG_FPS = false;
+const bool SHOW_DEBUG_FPS = false;    // Have score show current FPS instead
+const bool SHOW_SLINKY = false;       // Project requirement (real 3D scanned object)
 
 TowerDefender::TowerDefender(std::string ipAddress, int portNumber) 
 {
@@ -74,6 +75,7 @@ void TowerDefender::initGl() {
     this->sphereObject = std::make_unique<OBJObject>(std::string(SPHERE_OBJECT_PATH), (float) HAND_SIZE);
     this->helmetObject = std::make_unique<OBJObject>(std::string(HELMET_OBJECT_PATH), (float) HELMET_SIZE);
     this->scoreTextObject = std::make_unique<OBJObject>(std::string(SCORE_TEXT_OBJECT_PATH), (float) SCORE_TEXT_SIZE);
+    this->slinkyObject = std::make_unique<OBJObject>(std::string(SLINKY_OBJECT_PATH), (float) SLINKY_SIZE);
 
     // Load in combo text to render
     for (int multiplier = 1; multiplier <= MAX_MULTIPLIER; multiplier *= 2)
@@ -304,7 +306,10 @@ void TowerDefender::renderPlayers(const glm::mat4 & projection, const glm::mat4 
         this->arrowObject->draw(this->nonTexturedShaderID, projection, glm::inverse(headPose), arrowTransform);
 
         // Draw out player's hands
-        this->sphereObject->draw(this->nonTexturedShaderID, projection, glm::inverse(headPose), playerDominantHandTransform);
+        if(SHOW_SLINKY && (gameDataInstance.playerData[playerID].handData[playerDominantHand].thumbstickValue.y > 0.8f))
+            this->slinkyObject->draw(this->nonTexturedShaderID, projection, glm::inverse(headPose), playerDominantHandTransform);
+        else
+            this->sphereObject->draw(this->nonTexturedShaderID, projection, glm::inverse(headPose), playerDominantHandTransform);
         this->sphereObject->draw(this->nonTexturedShaderID, projection, glm::inverse(headPose), playerNonDominantHandTransform);
 
         // Draw out the string of the arrow
