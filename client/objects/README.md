@@ -1,10 +1,8 @@
 # Tower Defender VR - Model Credits
 
-### [Arrow](https://www.turbosquid.com/3d-models/3d-arrow-model-1192030)
-* Artist: [Karamaz](https://www.turbosquid.com/Search/Artists/Karamaz)
-
-### [Bow](https://free3d.com/3d-model/hawkeye-bow-80383.html)
-* Artist: [Dzaka Gamez](https://free3d.com/user/dzakagame)
+### Bow and Arrow
+* [Arrow](https://www.turbosquid.com/3d-models/3d-arrow-model-1192030) by [Karamaz](https://www.turbosquid.com/Search/Artists/Karamaz)
+* [Bow](https://free3d.com/3d-model/hawkeye-bow-80383.html) by [Dzaka Gamez](https://free3d.com/user/dzakagame)
 
 ### Environment
 * [Low Poly Mountains](https://free3d.com/3d-model/low-poly-mountains-94652.html) by [Olcayto İbili](https://free3d.com/user/olcaytoibili)

@@ -16,7 +16,7 @@ Here's a quick video demonstration of the game.
 In order to make this game, we used a couple of third party libraries in assisting with
 audio and networking. You can run the game as is on Visual Studio using the pre-compiled
 libraries located in `shared/` or you can re-compile the libraries yourself following
-these *[instructions](https://github.com/peternmai/TowerDefender/shared/)*.
+these *[instructions](shared/)*.
 
 The libraries we used are listed below
 
@@ -52,8 +52,8 @@ The libraries we used are listed below
 
 ## Special Thanks
 
-* [View Audio Credits](https://github.com/peternmai/TowerDefender/client/audio)
-* [View Model Credits](https://github.com/peternmai/TowerDefender/client/objects)
+* [View Audio Credits](client/audio/)
+* [View Model Credits](client/objects/)
 
 ## Known Issues
 
