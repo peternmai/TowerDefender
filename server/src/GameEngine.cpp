@@ -40,7 +40,7 @@ GameEngine::~GameEngine()
 
 // Update the game state using the specified refresh rate.
 // Note: This should be launched as a new thread
-void GameEngine::updateService() 
+void GameEngine::updateService()
 {
     while (this->gameEngineServiceStatus) {
 
@@ -50,13 +50,13 @@ void GameEngine::updateService()
         auto end = std::chrono::high_resolution_clock::now();
 
         // Sleep until the next desired refresh time based on refresh rate
-        std::chrono::nanoseconds computeDuration = 
+        std::chrono::nanoseconds computeDuration =
             std::chrono::duration_cast<std::chrono::nanoseconds>(end - start);
         std::this_thread::sleep_for(this->sleepDuration - computeDuration);
     }
 }
 
-void GameEngine::updateProcedure() 
+void GameEngine::updateProcedure()
 {
     /**
     auto end = std::chrono::system_clock::now();
@@ -166,7 +166,7 @@ rpcmsg::GameData GameEngine::updatePlayerData(const rpcmsg::GameData & previousG
             updatedPlayerData[playerID].dominantHand = LEFT_HAND;
         if (newPlayerDataInstance[playerID].handData[RIGHT_HAND].buttonState & ovrButton::ovrButton_B)
             updatedPlayerData[playerID].dominantHand = RIGHT_HAND;
-        
+
         uint32_t playerDominantHand = updatedPlayerData[playerID].dominantHand;
         uint32_t playerNonDominantHand = (playerDominantHand == LEFT_HAND) ? RIGHT_HAND : LEFT_HAND;
         glm::vec3 arrowReadyUpZone = glm::vec3((rpcmsg::rpcToGLM(newPlayerDataInstance[playerID].handData[playerNonDominantHand].handPose) * glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.0f, ARROW_READY_ZONE_Z_OFFSET)))[3]);
@@ -181,7 +181,7 @@ rpcmsg::GameData GameEngine::updatePlayerData(const rpcmsg::GameData & previousG
             // See if player's arrow landed and user can pick up another arrow
             glm::vec3 arrowPosition = rpcmsg::rpcToGLM(previousPlayerData[playerID].arrowData.arrowPose)[3];
             if (arrowPosition.y < 0.0f) {
-                
+
                 // See if user is reaching for a new arrow
                 if (previousPlayerData[playerID].handData[playerDominantHand].handTriggerValue < 0.5f)
                     if (newPlayerDataInstance[playerID].handData[playerDominantHand].handTriggerValue >= 0.5f)
@@ -270,7 +270,7 @@ rpcmsg::GameData GameEngine::updateArrowData(const rpcmsg::GameData & previousGa
     // Update the arrows of each player
     rpcmsg::GameData updatedGameData = previousGameData;
     for (auto player = updatedGameData.playerData.begin(); player != updatedGameData.playerData.end(); player++) {
-        
+
         uint32_t playerID = player->first;
         glm::vec3 arrowPosition = rpcmsg::rpcToGLM(updatedGameData.playerData[playerID].arrowData.arrowPose)[3];
 
@@ -284,7 +284,7 @@ rpcmsg::GameData GameEngine::updateArrowData(const rpcmsg::GameData & previousGa
 
     // Update the arrows that are flying
     for (auto flyingArrow = updatedGameData.gameState.flyingArrows.begin(); flyingArrow != updatedGameData.gameState.flyingArrows.end(); ) {
-        
+
         if (rpcmsg::rpcToGLM(flyingArrow->arrowPose)[3].y > 0.0f) {
             glm::mat4 arrowPose = this->calculateFlyingArrowPose(*flyingArrow);
             flyingArrow->arrowPose = rpcmsg::glmToRPC(arrowPose);
@@ -387,7 +387,7 @@ rpcmsg::GameData GameEngine::updateCastleCrasher(const rpcmsg::GameData & previo
 
                 // Update spawn cooldown timer
                 float spawnTimeRandom = (float)(distribution(randomGenerator) % 1000) / 1000.0f;
-                float spawnCooldownSeconds = (60.0f / (MAX_CASTLE_CRASHERS / (MAX_DIFFICULTY_SECONDS / 60.0f))) * 2.0f * spawnTimeRandom;
+                float spawnCooldownSeconds = 2.5f * spawnTimeRandom;
                 this->spawnCooldownTimer = std::chrono::nanoseconds((long long)(spawnCooldownSeconds * NANOSECONDS_IN_SECOND));
                 this->lastSpawnTime = currentTime;
             }
@@ -410,7 +410,7 @@ rpcmsg::GameData GameEngine::updateCastleCrasher(const rpcmsg::GameData & previo
 
                 // Calculate the castle crasher delta position in one second
                 glm::vec3 deltaPosition = glm::normalize(direction) * CASTLE_CRASHER_WALK_SPEED;
-                    
+
                 // Calculate the castle crasher updated position
                 glm::vec3 newPosition = rpcmsg::rpcToGLM(castleCrasher->position);
                 newPosition += deltaPosition / (float)REFRESH_RATE;
@@ -441,7 +441,7 @@ rpcmsg::GameData GameEngine::updateCastleCrasher(const rpcmsg::GameData & previo
                         updatedGameData.gameState.castleHealth - CASTLE_CRASHER_DAMAGE);
                     castleCrasher->lastAttackTimeMilliseconds = (uint32_t)(currentTime.count() / MILLI_TO_NANOSECONDS);
                 }
-                
+
             }
         }
     }
@@ -454,7 +454,7 @@ rpcmsg::GameData GameEngine::updateMultiplierDisplay(const rpcmsg::GameData & pr
     rpcmsg::GameData updatedGameData = previousGameData;
     for (auto multiplierData = updatedGameData.gameState.multiplierDisplayData.begin();
         multiplierData != updatedGameData.gameState.multiplierDisplayData.end();) {
-        
+
         // No more opacity, don't have to render anymore
         if (multiplierData->opacity <= 0.0f)
             multiplierData = updatedGameData.gameState.multiplierDisplayData.erase(multiplierData);

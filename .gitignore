@@ -1,0 +1,5 @@
+# macOS Folder Attributes
+.DS_Store
+
+# Compiled Object Files
+*.o
